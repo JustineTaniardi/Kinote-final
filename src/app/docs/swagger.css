@@ -1,0 +1,15 @@
+:root { color-scheme: light; }
+.swagger-ui,
+.swagger-ui .wrapper,
+.swagger-ui .topbar,
+.swagger-ui .information-container,
+.swagger-ui .opblock-tag-section {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+.swagger-ui .opblock-summary,
+.swagger-ui .model-box,
+.swagger-ui table,
+.swagger-ui .responses-inner {
+  background: #ffffff !important;
+}

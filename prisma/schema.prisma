@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      Int       @id @default(autoincrement())
+  name                    String
+  email                   String    @unique
+  password                String
+  emailVerifiedAt         DateTime?
+  emailVerificationToken  String?   @unique
+  resetPasswordToken      String?   @unique
+  resetPasswordExpiresAt  DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  tasks     Task[]
+  streaks   Streak[]
+  aiResults AiAnalysis[]
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  subCategories SubCategory[]
+  streaks       Streak[]
+}
+
+model SubCategory {
+  id         Int      @id @default(autoincrement())
+  name       String
+  categoryId Int
+  createdAt  DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id])
+  streaks  Streak[]
+}
+
+model Difficulty {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  tasks Task[]
+}
+
+model Status {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  tasks Task[]
+}
+
+model Day {
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  tasks   TaskDay[]
+  streaks Streak[]
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  deadline    DateTime
+  priority    String   @default("medium")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId       Int
+  difficultyId Int
+  statusId     Int
+
+  user       User       @relation(fields: [userId], references: [id])
+  difficulty Difficulty @relation(fields: [difficultyId], references: [id])
+  status     Status     @relation(fields: [statusId], references: [id])
+  days       TaskDay[]
+}
+
+model TaskDay {
+  id     Int @id @default(autoincrement())
+  taskId Int
+  dayId  Int
+
+  task Task @relation(fields: [taskId], references: [id])
+  day  Day  @relation(fields: [dayId], references: [id])
+
+  @@unique([taskId, dayId])
+}
+
+model Streak {
+  id          Int      @id @default(autoincrement())
+  title       String
+  dayId       Int
+  totalTime   Int      @default(0)
+  breakTime   Int      @default(0)
+  breakCount  Int      @default(0)
+  description String?
+  photoUrl    String?
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId        Int
+  categoryId    Int
+  subCategoryId Int?
+
+  user        User         @relation(fields: [userId], references: [id])
+  category    Category     @relation(fields: [categoryId], references: [id])
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
+  day         Day          @relation(fields: [dayId], references: [id])
+
+  histories     StreakHistory[]
+  exports       StreakExport[]
+  verifications AiVerification[]
+}
+
+model StreakHistory {
+  id              Int       @id @default(autoincrement())
+  streakId        Int
+  startTime       DateTime
+  endTime         DateTime?
+  duration        Int?
+  focusDuration   Int       @default(0)
+  totalBreakTime  Int       @default(0)
+  breakCount      Int       @default(0)
+  description     String?
+  photoUrl        String?
+  verifiedAI      Boolean   @default(false)
+  aiNote          String?
+  breakSessions   Json      @default("[]")
+  createdAt       DateTime  @default(now())
+
+  streak        Streak           @relation(fields: [streakId], references: [id])
+  verifications AiVerification[]
+}
+
+model StreakExport {
+  id         Int      @id @default(autoincrement())
+  streakId   Int
+  month      Int
+  year       Int
+  shareToken String   @unique
+  createdAt  DateTime @default(now())
+
+  streak Streak @relation(fields: [streakId], references: [id])
+}
+
+model AiAnalysis {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  purpose    String
+  sourceData Json
+  promptUsed String   @db.Text
+  result     Json
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AiVerification {
+  id          Int      @id @default(autoincrement())
+  streakId    Int?
+  historyId   Int?
+  description String?
+  imageUrl    String?
+  confidence  Float?
+  verified    Boolean  @default(false)
+  resultText  String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  streak  Streak?        @relation(fields: [streakId], references: [id])
+  history StreakHistory? @relation(fields: [historyId], references: [id])
+}
