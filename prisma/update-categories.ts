@@ -16,47 +16,47 @@ async function main() {
     await prisma.category.deleteMany({});
     console.log("  ✓ Categories deleted");
 
-    // Create 10 new categories with 5 subcategories each
+    // Create new categories with subcategories
     const categories = [
       {
-        name: "Work",
-        subcategories: ["Meetings", "Projects", "Presentations", "Reports", "Deadlines"],
+        name: "Study",
+        subcategories: ["Reading", "Reviewing", "Solving", "Summarizing", "Memorizing"],
       },
       {
-        name: "Learning",
-        subcategories: ["Online Courses", "Reading", "Practice", "Tutorials", "Certification"],
+        name: "Code",
+        subcategories: ["Debugging", "Refactoring", "Implementing", "Algorithm", "Learning"],
       },
       {
-        name: "Personal",
-        subcategories: ["Goals", "Habits", "Reflection", "Planning", "Journal"],
+        name: "Workout",
+        subcategories: ["Strength", "Cardio", "HIIT", "Core", "Yoga"],
       },
       {
-        name: "Health",
-        subcategories: ["Exercise", "Nutrition", "Sleep", "Mental Health", "Check-ups"],
+        name: "Read",
+        subcategories: ["Book", "Research", "Article", "Notes", "Analysis"],
       },
       {
-        name: "Entertainment",
-        subcategories: ["Movies", "Gaming", "Music", "Reading", "Hobbies"],
+        name: "Design",
+        subcategories: ["UI Sketch", "Illustration", "Editing", "Layout", "Concepting"],
       },
       {
-        name: "Finance",
-        subcategories: ["Budgeting", "Investing", "Savings", "Bills", "Planning"],
+        name: "Learn",
+        subcategories: ["Vocabulary", "Listening", "Practice", "Quiz", "Lecture"],
       },
       {
-        name: "Household",
-        subcategories: ["Cleaning", "Repairs", "Cooking", "Shopping", "Organization"],
+        name: "Write",
+        subcategories: ["Drafting", "Journaling", "Notes", "Practice", "Ideas"],
       },
       {
-        name: "Social",
-        subcategories: ["Friends", "Family", "Events", "Networking", "Community"],
+        name: "Music",
+        subcategories: ["Instrument", "Ear Training", "Composition", "Practice", "Repetition"],
       },
       {
-        name: "Travel",
-        subcategories: ["Planning", "Booking", "Packing", "Itinerary", "Documentation"],
+        name: "Game",
+        subcategories: ["Strategy", "Training", "Analysis", "Ranked", "Practice"],
       },
       {
-        name: "Creative",
-        subcategories: ["Writing", "Design", "Art", "Music", "Photography"],
+        name: "Meditate",
+        subcategories: ["Breathing", "Mindfulness", "Reflection", "Focus", "Calm"],
       },
     ];
 
