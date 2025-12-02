@@ -22,7 +22,7 @@ export function getResetPasswordEmailTemplate(
   userName: string,
   resetToken: string
 ): EmailTemplate {
-  const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
+  const resetLink = `${process.env.FRONTEND_URL || process.env.APP_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
   
   return {
     subject: "Reset Your Password - Kinote",
