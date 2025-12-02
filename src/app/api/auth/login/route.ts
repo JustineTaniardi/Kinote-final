@@ -99,8 +99,10 @@ export async function POST(req: Request) {
     let user;
     let isDevModeUser = false;
     try {
-      user = await prisma.user.findUnique({ where: { email } });
-    } catch (dbError) {
+      // Simple query without timeout - Railway should handle it
+      user = (await prisma.user.findUnique({ where: { email } })) as any;
+    } catch (dbError: any) {
+      console.error("Database error:", dbError);
       
       // Check if it's a connection error
       if (isDatabaseConnectionError(dbError)) {
@@ -111,7 +113,10 @@ export async function POST(req: Request) {
         );
       }
       // Other database errors
-      throw dbError;
+      return NextResponse.json(
+        { message: "Database query failed", error: dbError?.message },
+        { status: 503 }
+      );
     }
 
     if (!user) {
