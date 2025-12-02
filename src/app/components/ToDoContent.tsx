@@ -341,7 +341,7 @@ const ToDoContent: React.FC = () => {
         const statuses = await statusResponse.json();
         console.log(`[DEBUG] Available statuses:`, statuses);
         
-        const pendingStatus = statuses.find((s: any) => s.name.toLowerCase() === "pending");
+        const pendingStatus = statuses.find((s: any) => s.name.toLowerCase() === "active");
         console.log(`[DEBUG] Pending status:`, pendingStatus);
         
         if (pendingStatus) {
@@ -459,8 +459,8 @@ const ToDoContent: React.FC = () => {
       const difficulty = difficulties.find((d: any) => d.name === difficultyName);
       const difficultyId = difficulty?.id || 2;
 
-      // Find "pending" status
-      const status = statuses.find((s: any) => s.name === "pending");
+      // Find "Active" status
+      const status = statuses.find((s: any) => s.name.toLowerCase() === "active");
       const statusId = status?.id || 1;
 
       // Combine date and startTime for deadline
