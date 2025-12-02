@@ -57,16 +57,20 @@ export async function POST(req: Request) {
     }
 
     // Find user by email
-    const user = await prisma.user.findUnique({ where: { email } });
+    let user;
+    try {
+      user = await prisma.user.findUnique({ where: { email } });
+    } catch (dbError) {
+      throw dbError;
+    }
 
-    // Always return success for security (don't reveal if email exists)
     if (!user) {
       return NextResponse.json(
         {
-          message:
-            "If an account exists with this email, a password reset link has been sent.",
+          message: "Email not registered. Please register first.",
+          error: "Email not found",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
@@ -74,36 +78,41 @@ export async function POST(req: Request) {
     const resetToken = generateResetToken();
     const resetExpiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour from now
 
-    // Update user with reset token
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        resetPasswordToken: resetToken,
-        resetPasswordExpiresAt: resetExpiresAt,
-      },
-    });
+    // Update DB with reset token
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetPasswordToken: resetToken,
+          resetPasswordExpiresAt: resetExpiresAt,
+        },
+      });
+      } catch (updateError) {
+      throw updateError;
+    }
 
-    // Prepare email
+    // Prepare email using user name
     const emailTemplate = getResetPasswordEmailTemplate(user.name, resetToken);
 
-    // Send reset email (async, don't wait)
-    sendEmail({
-      to: email,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-    }).catch((error) => {
-      console.error(`Failed to send reset email to ${email}:`, error);
-    });
+    // Send reset email
+    try {
+      await sendEmail({
+        to: email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+      });
+      } catch (emailError) {
+      throw emailError;
+    }
 
     return NextResponse.json(
       {
-        message:
-          "If an account exists with this email, a password reset link has been sent.",
+        message: "Password reset link has been sent to your email. Please check your inbox and follow the link to reset your password.",
+        success: true,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Forgot password error:", error);
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

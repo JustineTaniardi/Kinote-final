@@ -28,29 +28,27 @@ export default function CalendarGrid({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-[calc(100vh-280px)]">
+    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full">
       {/* Header Row */}
-      <div className="flex bg-white">
+      <div className="flex flex-shrink-0 border-b border-gray-200 bg-white">
         {/* Time column header */}
-        <div className="w-20 flex-shrink-0 border-r border-gray-200 border-b">
-          <div className="h-16 border-b border-gray-200 flex items-center justify-center px-2">
-            <span className="text-xs text-gray-400 font-medium">Jam</span>
-          </div>
+        <div style={{ width: '80px' }} className="flex-shrink-0 h-16 flex items-center justify-center border-r border-gray-200 bg-white">
+          <span className="text-xs text-gray-400 font-medium">Jam</span>
         </div>
 
         {/* Day column headers */}
-        <div className="flex flex-1">
-          {displayDays.map((date) => {
+        <div className="flex flex-1 gap-0">
+          {displayDays.map((date, idx) => {
             const isToday = isCurrentDay(date);
             return (
-              <div key={`header-${date.toISOString()}`} className="flex-1 border-r border-gray-200 last:border-r-0">
-                <div
-                  className={`h-16 border-b border-gray-200 flex flex-col items-center justify-center font-semibold text-sm ${
-                    isToday ? "bg-blue-50 text-blue-900" : "text-gray-900"
-                  }`}
-                >
-                  {formatDayLabel(date)}
-                </div>
+              <div
+                key={`header-${date.toISOString()}`}
+                style={{ flex: 1 }}
+                className={`h-16 flex items-center justify-center font-semibold text-sm border-r ${
+                  idx === displayDays.length - 1 ? 'border-r-0' : 'border-r-gray-200'
+                } ${isToday ? "bg-blue-50 text-blue-900" : "text-gray-900 bg-white"}`}
+              >
+                {formatDayLabel(date)}
               </div>
             );
           })}
@@ -58,15 +56,25 @@ export default function CalendarGrid({
       </div>
 
       {/* Scrollable Body */}
-      <div className="flex flex-1 overflow-auto">
-        {/* Time column */}
-        <TimeColumn />
+      <div className="flex-1 overflow-y-auto hide-scrollbar">
+        <div className="flex gap-0">
+          {/* Time column */}
+          <div style={{ width: '80px' }} className="flex-shrink-0 bg-white border-r border-gray-200">
+            <TimeColumn />
+          </div>
 
-        {/* Day columns */}
-        <div className="flex flex-1">
-          {displayDays.map((date) => (
-            <DayColumn key={date.toISOString()} date={date} events={events} />
-          ))}
+          {/* Day columns */}
+          <div className="flex flex-1 gap-0">
+            {displayDays.map((date, idx) => (
+              <div
+                key={date.toISOString()}
+                style={{ flex: 1 }}
+                className={`border-r ${idx === displayDays.length - 1 ? 'border-r-0' : 'border-r-gray-200'} bg-white`}
+              >
+                <DayColumn date={date} events={events} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

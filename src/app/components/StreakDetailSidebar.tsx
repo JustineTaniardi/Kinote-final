@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import SidebarWrapper from "./SidebarWrapper";
 import { StreakEntry, ProgressStep } from "./StreakTypes";
 import { Trash2, Edit2, Check, X } from "lucide-react";
@@ -57,6 +58,49 @@ export default function StreakDetailSidebar({
     entry?.description || ""
   );
   const [historyCountData, setHistoryCountData] = useState(0);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Define handleEdit callback early to maintain consistent hook order
+  const handleEdit = useCallback(() => {
+    if (!entry) return;
+    
+    console.log("Edit button clicked, entry:", {
+      title: entry.title,
+      category: entry.category,
+      subcategory: entry.subcategory,
+      categoryId: entry.categoryId,
+      subCategoryId: entry.subCategoryId,
+    });
+    
+    // Use flushSync to ensure state updates are processed synchronously
+    flushSync(() => {
+      setEditTitle(entry.title);
+      setEditCategory(entry.category ?? "");
+      setEditSubcategory(entry.subcategory ?? "");
+      setEditDays(entry.days || []);
+      setEditTotalTime(String(entry.totalMinutes || ""));
+      setEditBreakTime(entry.breakTime || "");
+      setEditBreakCount(String(entry.breakCount || "0"));
+      setEditDescription(entry.description || "");
+      setEditError(null);
+      
+      // Ensure editDayIds is properly set
+      if (entry.dayIds && typeof entry.dayIds === 'string') {
+        try {
+          const parsed = JSON.parse(entry.dayIds);
+          setEditDayIds(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setEditDayIds([]);
+        }
+      } else if (Array.isArray(entry.dayIds)) {
+        setEditDayIds(entry.dayIds as number[]);
+      } else {
+        setEditDayIds([]);
+      }
+    });
+    
+    setIsEditing(true);
+  }, [entry]);
 
   // Fetch all days on mount
   useEffect(() => {
@@ -110,6 +154,7 @@ export default function StreakDetailSidebar({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMounted(true);
       setIsEditing(false);
+      setEditError(null);
       if (entry) {
         setEditTitle(entry.title);
         setEditCategory(entry.category ?? "");
@@ -220,6 +265,22 @@ export default function StreakDetailSidebar({
   };
 
   const handleSave = async () => {
+    // Validate totalTime - must be at least 1 minute
+    const parsedTotalTime = parseInt(editTotalTime) || 0;
+    if (parsedTotalTime < 1) {
+      setEditError("Total time must be at least 1 minute");
+      return;
+    }
+
+    // Validate breakTime - minimum 1 minute if provided
+    const parsedBreakTime = parseInt(String(editBreakTime).replace(/\D/g, "")) || 0;
+    if (String(editBreakTime).trim() !== "" && parsedBreakTime < 1) {
+      setEditError("Break time must be at least 1 minute");
+      return;
+    }
+
+    setEditError(null);
+
     try {
       // Extract category ID from category name or get from entry
       let categoryId = entry.categoryId || 1;
@@ -286,6 +347,7 @@ export default function StreakDetailSidebar({
     setEditCategory(entry.category ?? "");
     setEditSubcategory(entry.subcategory ?? "");
     setEditDays(entry.days || []);
+    setEditError(null);
     
     // Reset dayIds
     if (entry.dayIds && typeof entry.dayIds === 'string') {
@@ -308,10 +370,49 @@ export default function StreakDetailSidebar({
     setIsEditing(false);
   };
 
+  const handleExport = () => {
+    if (entry && entry.id) {
+      window.location.href = `/export/${entry.id}`;
+    }
+  };
+
   return (
     <SidebarWrapper isOpen={isOpen} onClose={onClose} width="420px">
       {/* Header Section with Title */}
-      <div className="px-6 py-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+      <div className="px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+        {/* Export Button Row */}
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <button
+            onClick={handleExport}
+            className="flex-1 px-4 py-2.5 bg-[#0f1a31] text-white rounded-lg text-sm font-medium hover:bg-[#1a2847] transition flex items-center justify-center gap-2 whitespace-nowrap"
+            title="Export activity"
+          >
+            <span>📤</span>
+            <span>Export</span>
+          </button>
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition p-1 shrink-0"
+            aria-label="Close sidebar"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+        
+        {/* Title and Streak Count */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -336,31 +437,17 @@ export default function StreakDetailSidebar({
               )}
             </div>
           </div>
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition p-1 shrink-0"
-            aria-label="Close sidebar"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
         </div>
       </div>
 
       {/* Content Section */}
       <div className="px-6 py-6 flex-1 space-y-5 overflow-y-auto">
+        {editError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            {editError}
+          </div>
+        )}
+
         {/* Category */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -370,8 +457,12 @@ export default function StreakDetailSidebar({
             <select
               value={editCategory}
               onChange={(e) => {
-                setEditCategory(e.target.value);
-                setEditSubcategory("");
+                const newCategory = e.target.value;
+                setEditCategory(newCategory);
+                // Only reset subcategory if we're changing to a different category
+                if (newCategory !== editCategory) {
+                  setEditSubcategory("");
+                }
               }}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -605,7 +696,7 @@ export default function StreakDetailSidebar({
           ) : (
             <>
               <button
-                onClick={() => setIsEditing(true)}
+                onClick={handleEdit}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
               >
                 <Edit2 className="w-4 h-4" />

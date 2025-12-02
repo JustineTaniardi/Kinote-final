@@ -181,6 +181,7 @@ export async function GET(req: Request) {
       include: {
         difficulty: true,
         status: true,
+        category: true,
         days: {
           include: {
             day: true,
@@ -211,7 +212,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, deadline, priority, difficultyId, statusId } = body;
+    const { title, description, deadline, priority, difficultyId, statusId, startTime, endTime, categoryId } = body;
 
     if (!title || !deadline || !difficultyId || !statusId) {
       return NextResponse.json(
@@ -227,13 +228,17 @@ export async function POST(req: Request) {
           description,
           deadline: new Date(deadline),
           priority: priority || "medium",
+          startTime: startTime || "08:00",
+          endTime: endTime || "09:00",
           userId,
           difficultyId,
           statusId,
+          categoryId: categoryId ? parseInt(categoryId) : null,
         },
         include: {
           difficulty: true,
           status: true,
+          category: true,
         },
       });
 

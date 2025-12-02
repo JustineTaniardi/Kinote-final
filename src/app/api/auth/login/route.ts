@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { validateEmail } from "@/lib/validation";
 import { rateLimiter } from "@/lib/rateLimiter";
+import { isDatabaseConnectionError, getDatabaseErrorResponse } from "@/lib/databaseErrorHandler";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -94,7 +95,25 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    // Find user by email
+    let user;
+    let isDevModeUser = false;
+    try {
+      user = await prisma.user.findUnique({ where: { email } });
+    } catch (dbError) {
+      
+      // Check if it's a connection error
+      if (isDatabaseConnectionError(dbError)) {
+        const errorData = getDatabaseErrorResponse();
+        return NextResponse.json(
+          { message: errorData.message, hint: errorData.hint },
+          { status: errorData.status }
+        );
+      }
+      // Other database errors
+      throw dbError;
+    }
+
     if (!user) {
       return NextResponse.json(
         { message: "Email is not registered" },
@@ -102,7 +121,31 @@ export async function POST(req: Request) {
       );
     }
 
-    const match = await bcrypt.compare(password, user.password);
+    // Check if email is verified
+    if (!isDevModeUser && !user.emailVerifiedAt) {
+      return NextResponse.json(
+        {
+          message: "Email not verified. Please check your email for the verification code.",
+          email: user.email,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Verify password
+    let match;
+    if (isDevModeUser) {
+      // In dev mode with mock user, just compare plain text passwords
+      match = password === user.password;
+    } else {
+      // Normal mode - use bcrypt comparison
+      try {
+        match = await bcrypt.compare(password, user.password);
+      } catch (bcryptError) {
+        throw bcryptError;
+      }
+    }
+
     if (!match) {
       return NextResponse.json(
         { message: "Incorrect password" },
@@ -124,7 +167,6 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Login error:", error);
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

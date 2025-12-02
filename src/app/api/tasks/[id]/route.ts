@@ -204,6 +204,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log(`[PATCH DEBUG] Request received`);
+    
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return NextResponse.json(
@@ -214,6 +216,8 @@ export async function PATCH(
 
     const { id } = await params;
     const taskId = parseInt(id);
+    console.log(`[PATCH DEBUG] Updating task ID: ${taskId}`);
+    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -232,8 +236,35 @@ export async function PATCH(
       );
     }
 
-    const body = await req.json();
-    const { title, description, deadline, priority, difficultyId, statusId } = body;
+    let body;
+    try {
+      // Clone request to get body
+      const clonedReq = req.clone();
+      const bodyText = await clonedReq.text();
+      console.log(`[PATCH DEBUG] Body text: "${bodyText}"`);
+      
+      if (!bodyText || bodyText.trim() === '') {
+        console.error("[PATCH DEBUG] Body is empty!");
+        return NextResponse.json(
+          { message: "Request body is empty" },
+          { status: 400 }
+        );
+      }
+      
+      body = JSON.parse(bodyText);
+      console.log(`[PATCH DEBUG] Parsed body:`, body);
+    } catch (e) {
+      console.error("Failed to parse JSON body:", e);
+      console.error("Request headers:", Object.fromEntries(req.headers));
+      return NextResponse.json(
+        { message: "Invalid JSON in request body" },
+        { status: 400 }
+      );
+    }
+
+    const { title, description, deadline, priority, difficultyId, statusId, startTime, endTime } = body;
+    console.log(`[PATCH DEBUG] Extracted statusId: ${statusId}`);
+    console.log(`[PATCH DEBUG] Extracted startTime: ${startTime}, endTime: ${endTime}`);
 
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
@@ -244,6 +275,8 @@ export async function PATCH(
         ...(priority && { priority }),
         ...(difficultyId && { difficultyId }),
         ...(statusId && { statusId }),
+        ...(startTime && { startTime }),
+        ...(endTime && { endTime }),
       },
       include: {
         difficulty: true,
@@ -256,6 +289,7 @@ export async function PATCH(
       },
     });
 
+    console.log(`[PATCH DEBUG] Task updated successfully, new status ID: ${updatedTask.statusId}`);
     return NextResponse.json(updatedTask);
   } catch (error) {
     console.error("Update task error:", error);

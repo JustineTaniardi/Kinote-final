@@ -106,6 +106,21 @@ export async function POST(
       );
     }
 
+    // Validate that description and photoUrl are required
+    if (!description || description.trim() === "") {
+      return NextResponse.json(
+        { message: "Description is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!photoUrl || photoUrl.trim() === "") {
+      return NextResponse.json(
+        { message: "Photo URL is required" },
+        { status: 400 }
+      );
+    }
+
     const history = await prisma.streakHistory.findUnique({
       where: { id: historyId },
     });
@@ -120,8 +135,8 @@ export async function POST(
     const updatedHistory = await prisma.streakHistory.update({
       where: { id: historyId },
       data: {
-        description: description || null,
-        photoUrl: photoUrl || null,
+        description: description.trim(),
+        photoUrl: photoUrl.trim(),
       },
     });
 

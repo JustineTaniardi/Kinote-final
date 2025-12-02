@@ -16,6 +16,9 @@ interface ToDoItem {
   category: string;
   priority: string;
   deadline: string;
+  deadlineRaw?: string; // ISO format for sorting
+  startTime?: string;
+  endTime?: string;
   description: string;
   createdAt?: string;
   updatedAt?: string;
@@ -28,10 +31,11 @@ interface ToDoItem {
 
 interface ToDoFormData {
   title: string;
-  category: string;
+  categoryId?: number | null;
   priority: string;
   date: string;
-  time: string;
+  startTime: string;
+  endTime: string;
   description: string;
   status?: string;
 }
@@ -77,7 +81,6 @@ const ToDoContent: React.FC = () => {
     field: "status" | "category" | "priority";
   } | null>(null);
   const [todos, setTodos] = useState<ToDoItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [isAllExpanded, setIsAllExpanded] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<ToDoItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -145,15 +148,56 @@ const ToDoContent: React.FC = () => {
         );
       case "deadline-nearest":
         return sorted.sort((a, b) => {
-          const dateA = a.deadline ? new Date(a.deadline) : new Date(9999, 0, 0);
-          const dateB = b.deadline ? new Date(b.deadline) : new Date(9999, 0, 0);
-          return dateA.getTime() - dateB.getTime();
+          // Use raw ISO format deadline for accurate sorting with time
+          let dateTimeA: Date;
+          let dateTimeB: Date;
+          
+          if (a.deadlineRaw && a.startTime) {
+            // Combine ISO date with startTime
+            const dateOnly = a.deadlineRaw.split('T')[0];
+            dateTimeA = new Date(`${dateOnly}T${a.startTime}`);
+          } else if (a.deadlineRaw) {
+            dateTimeA = new Date(a.deadlineRaw);
+          } else {
+            dateTimeA = new Date(9999, 0, 0);
+          }
+          
+          if (b.deadlineRaw && b.startTime) {
+            const dateOnly = b.deadlineRaw.split('T')[0];
+            dateTimeB = new Date(`${dateOnly}T${b.startTime}`);
+          } else if (b.deadlineRaw) {
+            dateTimeB = new Date(b.deadlineRaw);
+          } else {
+            dateTimeB = new Date(9999, 0, 0);
+          }
+          
+          return dateTimeA.getTime() - dateTimeB.getTime();
         });
       case "deadline-farthest":
         return sorted.sort((a, b) => {
-          const dateA = a.deadline ? new Date(a.deadline) : new Date(0);
-          const dateB = b.deadline ? new Date(b.deadline) : new Date(0);
-          return dateB.getTime() - dateA.getTime();
+          // Use raw ISO format deadline for accurate sorting with time
+          let dateTimeA: Date;
+          let dateTimeB: Date;
+          
+          if (a.deadlineRaw && a.startTime) {
+            const dateOnly = a.deadlineRaw.split('T')[0];
+            dateTimeA = new Date(`${dateOnly}T${a.startTime}`);
+          } else if (a.deadlineRaw) {
+            dateTimeA = new Date(a.deadlineRaw);
+          } else {
+            dateTimeA = new Date(0);
+          }
+          
+          if (b.deadlineRaw && b.startTime) {
+            const dateOnly = b.deadlineRaw.split('T')[0];
+            dateTimeB = new Date(`${dateOnly}T${b.startTime}`);
+          } else if (b.deadlineRaw) {
+            dateTimeB = new Date(b.deadlineRaw);
+          } else {
+            dateTimeB = new Date(0);
+          }
+          
+          return dateTimeB.getTime() - dateTimeA.getTime();
         });
       default:
         return sorted;
@@ -169,25 +213,38 @@ const ToDoContent: React.FC = () => {
           ? (task.status as any).name
           : task.status || "Not Started";
         
-        return {
+        // Extract category name from nested object
+        const categoryName = typeof (task as any).category === 'object' && (task as any).category !== null && 'name' in (task as any).category
+          ? (task as any).category.name
+          : (task as any).category || "";
+        
+        const convertedItem = {
           id: task.id,
           status: statusName,
           title: task.title,
-          category: (task as any).category || "",
+          category: categoryName,
           priority: task.priority || "medium",
           deadline: task.deadline
             ? new Date(task.deadline).toLocaleDateString("en-US", {
                 weekday: "long",
                 year: "numeric",
-                month: "long",
+                month: "short",
                 day: "numeric",
               })
             : "",
+          deadlineRaw: task.deadline || undefined, // Store raw ISO format for sorting
           description: task.description || "",
           subcategory: (task as any).subcategory || "",
+          startTime: (task as any).startTime || "08:00",
+          endTime: (task as any).endTime || "09:00",
           createdAt: task.createdAt,
           updatedAt: task.updatedAt,
         };
+        
+        // Debug log untuk setiap item
+        console.log(`[DEBUG] Task: ${convertedItem.title}, Status: "${convertedItem.status}", ID: ${task.id}`);
+        
+        return convertedItem;
       });
     }
     return null;
@@ -197,44 +254,140 @@ const ToDoContent: React.FC = () => {
   const baseTodos =
     convertedTodos && convertedTodos.length > 0 ? convertedTodos : todos;
 
+  // Helper function to sort todos - pending first, then completed
+  const sortByStatus = (todosToSort: ToDoItem[]): ToDoItem[] => {
+    const pending = todosToSort.filter((item) => {
+      const statusLower = item.status?.toLowerCase() || "";
+      return statusLower !== "completed";
+    });
+    const completed = todosToSort.filter((item) => {
+      const statusLower = item.status?.toLowerCase() || "";
+      return statusLower === "completed";
+    });
+    return [...pending, ...completed];
+  };
+
   // Apply sorting to display todos
   const displayTodos = useMemo(
-    () => getSortedTodos(baseTodos),
+    () => sortByStatus(getSortedTodos(baseTodos)),
     [baseTodos, currentSort]
   );
 
   // Handler for checkbox
-  const handleSelectItem = (id: number) => {
-    const isCurrentlySelected = selectedItems.includes(id);
+  const handleSelectItem = async (id: number) => {
+    console.log(`[DEBUG] handleSelectItem called for ID: ${id}`);
+    const item = baseTodos.find((t) => t.id === id);
+    if (!item) {
+      console.log(`[DEBUG] Item not found with ID: ${id}`);
+      return;
+    }
 
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    console.log(`[DEBUG] Item found:`, item);
 
-    if (!isCurrentlySelected) {
-      setTodos((prev) => {
-        const selectedItem = prev.find((item) => item.id === id);
-        if (!selectedItem) return prev;
-        const remaining = prev.filter((item) => item.id !== id);
-        const completedItem = {
-          ...selectedItem,
-          status: "Completed",
-          updatedAt: new Date().toISOString(),
-        };
-        return [...remaining, completedItem];
-      });
-    } else {
-      setTodos((prev) =>
-        prev.map((item) =>
-          item.id === id
-            ? { ...item, status: "Not Started", updatedAt: undefined }
-            : item
-        )
-      );
+    const isCompleted = item.status && 
+      (item.status.toLowerCase() === "completed");
+
+    console.log(`[DEBUG] isCompleted: ${isCompleted}, current status: "${item.status}"`);
+
+    try {
+      if (!isCompleted) {
+        console.log(`[DEBUG] Marking task as completed`);
+        // Get status ID for "completed"
+        const statusResponse = await fetch("/api/status", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        });
+        const statuses = await statusResponse.json();
+        console.log(`[DEBUG] Available statuses:`, statuses);
+        
+        const completedStatus = statuses.find((s: any) => s.name.toLowerCase() === "completed");
+        console.log(`[DEBUG] Completed status:`, completedStatus);
+        
+        if (completedStatus) {
+          // Update task status to completed in database
+          console.log(`[DEBUG] Updating task ${id} with statusId ${completedStatus.id}`);
+          try {
+            const updateResponse = await updateTask(id, { statusId: completedStatus.id });
+            console.log(`[DEBUG] Update response:`, updateResponse);
+            console.log(`[DEBUG] Update successful, new status ID: ${updateResponse?.statusId}`);
+            
+            // Wait a bit then refetch to ensure database is updated
+            console.log(`[DEBUG] Waiting before refetch...`);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            console.log(`[DEBUG] Calling refetch...`);
+            await refetch();
+            console.log(`[DEBUG] Refetch completed`);
+            
+            showSuccess("Task marked as Done");
+          } catch (updateErr) {
+            console.error("[DEBUG] Update error:", updateErr);
+            showError("Failed to update task");
+            throw updateErr;
+          }
+        } else {
+          console.log(`[DEBUG] Completed status not found`);
+          showError("Status not found");
+        }
+      } else {
+        console.log(`[DEBUG] Marking task as pending`);
+        // Get status ID for "pending"
+        const statusResponse = await fetch("/api/status", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        });
+        const statuses = await statusResponse.json();
+        console.log(`[DEBUG] Available statuses:`, statuses);
+        
+        const pendingStatus = statuses.find((s: any) => s.name.toLowerCase() === "pending");
+        console.log(`[DEBUG] Pending status:`, pendingStatus);
+        
+        if (pendingStatus) {
+          // Update task status back to pending
+          console.log(`[DEBUG] Updating task ${id} with statusId ${pendingStatus.id}`);
+          try {
+            const updateResponse = await updateTask(id, { statusId: pendingStatus.id });
+            console.log(`[DEBUG] Update response:`, updateResponse);
+            console.log(`[DEBUG] Update successful, new status ID: ${updateResponse?.statusId}`);
+            
+            // Wait a bit then refetch to ensure database is updated
+            console.log(`[DEBUG] Waiting before refetch...`);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            console.log(`[DEBUG] Calling refetch...`);
+            await refetch();
+            console.log(`[DEBUG] Refetch completed`);
+            
+            showSuccess("Task marked as Pending");
+          } catch (updateErr) {
+            console.error("[DEBUG] Update error:", updateErr);
+            showError("Failed to update task");
+            throw updateErr;
+          }
+        } else {
+          console.log(`[DEBUG] Pending status not found`);
+          showError("Status not found");
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error updating task status:", errorMessage);
+      console.error("Full error:", error);
+      // Don't show error twice if already shown in catch block
+      if (!error) {
+        showError("Failed to update task status: " + errorMessage);
+      }
     }
   };
 
-  // Helper function for priority color
+  // Helper function to check if item is completed
+  const isItemCompleted = (item: ToDoItem): boolean => {
+    return !!(item.status && item.status.toLowerCase() === "completed");
+  };
+
+  // Helper function for priority/difficulty color
   const getPriorityColor = (priority: string): string => {
     switch (priority.toLowerCase()) {
       case "high":
@@ -248,6 +401,29 @@ const ToDoContent: React.FC = () => {
       default:
         return "bg-gray-100 text-gray-700";
     }
+  };
+
+  // Helper function for difficulty color badge
+  const getDifficultyColor = (difficulty: string): string => {
+    const normalized = difficulty.toLowerCase();
+    if (normalized === "high" || normalized === "tinggi" || normalized === "hard") {
+      return "bg-red-100 text-red-700";
+    }
+    switch (normalized) {
+      case "medium":
+        return "bg-blue-100 text-blue-700";
+      case "low":
+      case "easy":
+        return "bg-green-100 text-green-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  // Helper function to truncate text longer than 16 characters
+  const truncateText = (text: string, maxLength: number = 16): string => {
+    if (!text) return "";
+    return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
   };
 
   // Handler for submit form
@@ -287,8 +463,8 @@ const ToDoContent: React.FC = () => {
       const status = statuses.find((s: any) => s.name === "pending");
       const statusId = status?.id || 1;
 
-      // Combine date and time for deadline
-      const deadline = new Date(`${data.date}T${data.time}`);
+      // Combine date and startTime for deadline
+      const deadline = new Date(`${data.date}T${data.startTime}`);
 
       const token = localStorage.getItem("authToken");
       const response = await fetch("/api/tasks", {
@@ -301,21 +477,27 @@ const ToDoContent: React.FC = () => {
           title: data.title,
           description: data.description,
           deadline: deadline.toISOString(),
+          startTime: data.startTime,
+          endTime: data.endTime,
           priority: data.priority.toLowerCase(),
           difficultyId,
           statusId,
+          categoryId: data.categoryId,
         }),
       });
 
       if (response.ok) {
         const newTask = await response.json();
+        const categoryName = newTask.category?.name || "";
         const newToDo: ToDoItem = {
           id: newTask.id,
           status: "Not Started",
           title: newTask.title,
-          category: data.category,
+          category: categoryName,
           priority: data.priority,
           deadline: data.date,
+          startTime: data.startTime,
+          endTime: data.endTime,
           description: newTask.description || "",
           createdAt: newTask.createdAt,
           updatedAt: newTask.updatedAt,
@@ -376,7 +558,6 @@ const ToDoContent: React.FC = () => {
 
   const handleDeleteActivity = (id: number) => {
     setTodos((prev) => prev.filter((t) => t.id !== id));
-    setSelectedItems((prev) => prev.filter((sid) => sid !== id));
     showSuccess("Task deleted successfully");
     // Refresh the page after a short delay
     setTimeout(() => {
@@ -392,6 +573,8 @@ const ToDoContent: React.FC = () => {
       category: updatedData.category,
       priority: updatedData.priority,
       deadline: updatedData.deadline,
+      startTime: updatedData.startTime,
+      endTime: updatedData.endTime,
       description: updatedData.description,
       status: updatedData.status,
       updatedAt: updatedData.updatedAt,
@@ -401,7 +584,10 @@ const ToDoContent: React.FC = () => {
         t.id === convertedItem.id ? { ...t, ...convertedItem } : t
       )
     );
-    refetch();
+    // Refetch to ensure database is in sync with UI
+    setTimeout(() => {
+      refetch();
+    }, 100);
     setSelectedActivity(convertedItem);
   };
 
@@ -409,87 +595,78 @@ const ToDoContent: React.FC = () => {
     <div className="flex flex-col w-full h-screen overflow-hidden">
       {/* Header section */}
       <div className="shrink-0 bg-white border-b border-gray-200 p-6">
-        <div className="w-full bg-[#F4F6F9] rounded-lg px-6 py-3 shadow-sm mb-6 flex items-center">
-          <svg
-            className="w-4 h-4 text-gray-400 mr-3"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search for anything.."
-            className="w-full bg-transparent outline-none text-sm text-gray-600 placeholder-gray-400"
-          />
-        </div>
-
         <div className="flex gap-3">
           <div className="relative" ref={sortDropdownRef}>
             <button
               onClick={() => setSortOpen(!sortOpen)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#161D36] border border-[#161D36] rounded-lg text-sm text-white hover:bg-[#1a2140] transition"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                sortOpen
+                  ? "bg-[#161D36] text-white shadow-md"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
             >
-              <span className="text-lg">⚙️</span>
-              Filter / Sort
+              <span className="text-base">🔀</span>
+              <span>Sort</span>
               <ChevronDownIcon
-                className={`w-4 h-4 transition-transform ${
+                className={`w-4 h-4 transition-transform duration-300 ${
                   sortOpen ? "rotate-180" : ""
                 }`}
               />
             </button>
 
             {sortOpen && (
-              <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[220px]">
+              <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[240px] overflow-hidden">
                 <button
                   onClick={() => {
                     setCurrentSort("name-asc");
                     setSortOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition text-sm ${
-                    currentSort === "name-asc" ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700"
+                  className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition text-sm ${
+                    currentSort === "name-asc"
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-gray-700"
                   }`}
                 >
-                  Sort by Name (A → Z)
+                  ↑↓ Sort by Name (A → Z)
                 </button>
                 <button
                   onClick={() => {
                     setCurrentSort("difficulty-easy-hard");
                     setSortOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition text-sm ${
-                    currentSort === "difficulty-easy-hard" ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700"
+                  className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition text-sm ${
+                    currentSort === "difficulty-easy-hard"
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-gray-700"
                   }`}
                 >
-                  Sort by Difficulty (Easy → Hard)
+                  📊 Difficulty (Easy → Hard)
                 </button>
                 <button
                   onClick={() => {
                     setCurrentSort("deadline-nearest");
                     setSortOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition text-sm ${
-                    currentSort === "deadline-nearest" ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700"
+                  className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition text-sm ${
+                    currentSort === "deadline-nearest"
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-gray-700"
                   }`}
                 >
-                  Sort by Deadline (Nearest → Farthest)
+                  📅 Nearest → Farthest
                 </button>
                 <button
                   onClick={() => {
                     setCurrentSort("deadline-farthest");
                     setSortOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition text-sm ${
-                    currentSort === "deadline-farthest" ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700"
+                  className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition text-sm ${
+                    currentSort === "deadline-farthest"
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-gray-700"
                   }`}
                 >
-                  Sort by Deadline (Farthest → Nearest)
+                  📅 Farthest → Nearest
                 </button>
               </div>
             )}
@@ -537,13 +714,14 @@ const ToDoContent: React.FC = () => {
 
               {isAllExpanded && (
                 <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-                  <div className="hidden md:grid grid-cols-[40px_1fr_120px_120px_120px_180px_1fr] gap-4 px-4 py-4 bg-[#161D36] border-b-2 border-[#161D36] text-xs font-bold text-white uppercase tracking-wide sticky top-0 z-10">
+                  <div className="hidden md:grid grid-cols-[40px_90px_140px_110px_110px_100px_110px_1fr] gap-4 px-6 py-5 bg-[#161D36] border-b-2 border-[#161D36] text-sm font-bold text-white uppercase tracking-wide sticky top-0 z-10">
                     <div className="flex items-center" />
                     <div className="flex items-center">Status</div>
                     <div className="flex items-center">Title</div>
                     <div className="flex items-center">Date</div>
                     <div className="flex items-center">Category</div>
-                    <div className="flex items-center">Priority</div>
+                    <div className="flex items-center">Time</div>
+                    <div className="flex items-center">Difficulty</div>
                     <div className="flex items-center">Description</div>
                   </div>
 
@@ -554,75 +732,64 @@ const ToDoContent: React.FC = () => {
                         transition={{ layout: { duration: 0.28 } }}
                         key={item.id}
                         onClick={() => openActivityModal(item)}
-                        className={`row-transition grid grid-cols-[40px_1fr_120px_120px_120px_180px_1fr] gap-4 px-4 py-4 border-b border-gray-100 hover:bg-gray-50 text-sm ${
-                          selectedItems.includes(item.id)
+                        className={`row-transition grid grid-cols-[40px_90px_140px_110px_110px_100px_110px_1fr] gap-4 px-6 py-4 border-b border-gray-100 hover:bg-gray-50 text-sm ${
+                          isItemCompleted(item)
                             ? "bg-gray-200 row-completed text-gray-700"
                             : "bg-white text-gray-700"
                         }`}
                       >
-                        <div className="flex items-center">
+                        <div className="flex items-center justify-start">
                           <input
                             type="checkbox"
-                            checked={selectedItems.includes(item.id)}
+                            checked={isItemCompleted(item)}
                             onChange={() => handleSelectItem(item.id)}
                             onClick={(e) => e.stopPropagation()}
                             className="w-4 h-4 cursor-pointer accent-black"
                           />
                         </div>
 
-                        <div className="relative text-gray-700">
-                          <span className="inline-block px-3 py-1.5 rounded bg-gray-100">
-                            {item.status}
+                        <div className="flex items-center">
+                          <span className="inline-block px-2 py-1 rounded bg-gray-100 text-sm font-medium whitespace-nowrap">
+                            {isItemCompleted(item) ? "Done" : "Pending"}
                           </span>
                         </div>
 
-                        <div className="text-gray-700">
-                          {item.title}
-                        </div>
-                        <div className="text-gray-700">
-                          {item.deadline}
+                        <div className="flex items-center truncate text-sm" title={item.title}>
+                          <span className="truncate max-w-[120px]">{truncateText(item.title, 14)}</span>
                         </div>
 
-                        <div className="relative dropdown-cell">
+                        <div className="flex items-center text-sm">
+                          {item.deadline ? item.deadline.split(",")[0] : "-"}
+                        </div>
+
+                        <div className="relative dropdown-cell truncate flex items-center" title={item.category}>
                           <div
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!selectedItems.includes(item.id))
+                              if (!isItemCompleted(item))
                                 setEditingCell({
                                   id: item.id,
                                   field: "category",
                                 });
                             }}
-                            className="cursor-pointer hover:bg-gray-200 bg-gray-100 px-3 py-1.5 rounded transition inline-block"
+                            className="cursor-pointer hover:bg-gray-200 bg-gray-100 px-2 py-1 rounded transition inline-block text-sm"
                           >
-                            {item.category}
+                            {truncateText(item.category, 16)}
                           </div>
                         </div>
 
-                        <div className="relative dropdown-cell">
-                          <div
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!selectedItems.includes(item.id))
-                                setEditingCell({
-                                  id: item.id,
-                                  field: "priority",
-                                });
-                            }}
-                            className="cursor-pointer inline-block"
-                          >
-                            <span
-                              className={`inline-block px-3 py-1 rounded-md text-xs font-medium ${getPriorityColor(
-                                item.priority
-                              )} hover:opacity-80 transition`}
-                            >
-                              {item.priority}
-                            </span>
-                          </div>
+                        <div className="flex items-center text-sm">
+                          {item.startTime && item.endTime ? `${item.startTime}-${item.endTime}` : "-"}
                         </div>
 
-                        <div className="truncate text-gray-600">
-                          {item.description}
+                        <div className="flex items-center">
+                          <span className={`inline-block px-2 py-1 rounded text-sm font-medium whitespace-nowrap ${getDifficultyColor(item.priority)}`}>
+                            {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center truncate text-sm" title={item.description}>
+                          {truncateText(item.description, 16)}
                         </div>
                       </motion.div>
                     ))}
@@ -636,7 +803,7 @@ const ToDoContent: React.FC = () => {
                         key={item.id}
                         onClick={() => openActivityModal(item)}
                         className={`row-transition p-4 rounded-lg border-2 ${
-                          selectedItems.includes(item.id)
+                          isItemCompleted(item)
                             ? "bg-gray-200 border-gray-300 row-completed"
                             : "bg-white border-gray-200 hover:border-gray-300"
                         }`}
@@ -644,73 +811,76 @@ const ToDoContent: React.FC = () => {
                         <div className="flex items-start gap-3 mb-3">
                           <input
                             type="checkbox"
-                            checked={selectedItems.includes(item.id)}
+                            checked={isItemCompleted(item)}
                             onChange={() => handleSelectItem(item.id)}
                             onClick={(e) => e.stopPropagation()}
                             className="w-5 h-5 cursor-pointer accent-[#161D36] mt-0.5 shrink-0"
                           />
                           <div className="flex-1 min-w-0">
                             <h3
-                              className={`font-semibold text-sm ${
-                                selectedItems.includes(item.id)
+                              className={`font-semibold text-base ${
+                                isItemCompleted(item)
                                   ? "text-gray-700"
                                   : "text-gray-900"
                               }`}
+                              title={item.title}
                             >
-                              {item.title}
+                              {truncateText(item.title, 16)}
                             </h3>
                             <span
                               className={`inline-block mt-1 px-2 py-1 text-xs font-medium rounded ${
-                                selectedItems.includes(item.id)
+                                isItemCompleted(item)
                                   ? "bg-gray-300 text-gray-700"
                                   : "bg-gray-100 text-gray-600"
                               }`}
                             >
-                              {item.status}
+                              {isItemCompleted(item) ? "Done" : "Pending"}
                             </span>
                           </div>
                         </div>
 
                         <div
-                          className={`space-y-2 text-sm ${
-                            selectedItems.includes(item.id)
+                          className={`space-y-2 text-base ${
+                            isItemCompleted(item)
                               ? "text-gray-700"
                               : "text-gray-600"
                           }`}
                         >
                           <div className="flex justify-between items-center">
                             <span className="font-medium">Date:</span>
-                            <span>{item.deadline}</span>
+                            <span className="text-sm">{item.deadline ? item.deadline.split(",")[0] : "-"}</span>
                           </div>
 
                           <div className="flex justify-between items-center">
                             <span className="font-medium">Category:</span>
-                            <div className="cursor-pointer px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                              {item.category}
+                            <div className="cursor-pointer px-2 py-1 rounded text-sm font-medium bg-gray-100 text-gray-700" title={item.category}>
+                              {truncateText(item.category, 16)}
                             </div>
                           </div>
 
                           <div className="flex justify-between items-center">
-                            <span className="font-medium">Priority:</span>
-                            <span
-                              className={`inline-block px-2 py-1 rounded text-xs font-medium ${getPriorityColor(
-                                item.priority
-                              )}`}
-                            >
-                              {item.priority}
+                            <span className="font-medium">Time:</span>
+                            <span className="text-sm">{item.startTime && item.endTime ? `${item.startTime}-${item.endTime}` : "-"}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">Difficulty:</span>
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getDifficultyColor(item.priority)}`}>
+                              {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
                             </span>
                           </div>
                         </div>
 
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <p
-                            className={`text-xs leading-relaxed ${
-                              selectedItems.includes(item.id)
+                            className={`text-sm leading-relaxed ${
+                              isItemCompleted(item)
                                 ? "text-gray-700"
                                 : "text-gray-500"
                             }`}
+                            title={item.description}
                           >
-                            {item.description}
+                            {truncateText(item.description, 16)}
                           </p>
                         </div>
                       </motion.div>

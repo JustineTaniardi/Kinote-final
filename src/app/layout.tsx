@@ -12,7 +12,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body className="bg-white text-black" suppressHydrationWarning>
+      <body className="bg-white text-black">
         {/* Header dihapus dari layout */}
         <main>{children}</main>
       </body>

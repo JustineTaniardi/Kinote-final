@@ -110,6 +110,7 @@ export default function StreakTimerModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showEndSessionModal, setShowEndSessionModal] = useState(false); // ✅ Popup modal state
+  const [confirmAction, setConfirmAction] = useState<"cancel" | "end">("cancel"); // ✅ Track which action user wants
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -303,32 +304,10 @@ export default function StreakTimerModal({
       );
       setSavedFocusSeconds(focusSeconds);
       
-      // Calculate new breakCount after taking a break - use locked value
-      const newBreakCount = lockedInitialBreakRepsRef.current - (usedBreakReps + 1);
-      
-      // ✅ Sync updated breakCount to database
-      if (streakId) {
-        const token = localStorage.getItem("authToken");
-        if (token) {
-          fetch(`/api/streaks/${streakId}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              breakCount: newBreakCount,
-            }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              console.log("breakCount updated on break:", data);
-            })
-            .catch((err) => {
-              console.error("Failed to update breakCount on break:", err);
-            });
-        }
-      }
+      // NOTE: Do NOT update breakCount in the Streak table
+      // breakCount is a user preference for how many break sessions are allowed per activity
+      // It should remain constant and not be decremented during a session
+      // The actual break count used in this session is tracked in local state (remainingBreakReps/usedBreakReps)
       
       setRemainingBreakReps((prev: number) => prev - 1);
       setUsedBreakReps((prev: number) => prev + 1);
@@ -381,29 +360,51 @@ export default function StreakTimerModal({
   };
 
   const handleClose = () => {
-    // ✅ Same as End Session - show popup instead of just closing
-    setShowEndSessionModal(true);
+    // ✅ X button clicked - check if there's significant focus time
+    const totalFocus =
+      totalAccumulatedFocus +
+      (mode === "focus" ? focusMinutes * 60 - focusSeconds : 0);
+    
+    // If no significant focus time (< 10 minutes), close directly without popup
+    if (totalFocus < 600) {
+      // ✅ Clear timer state from localStorage when cancelled
+      localStorage.removeItem("streakTimerState");
+      setShowEndSessionModal(false);
+      setConfirmAction("cancel"); // Reset to default state
+      onClose();
+    } else {
+      // If there is significant focus time, show confirmation popup for cancel
+      setConfirmAction("cancel");
+      setShowEndSessionModal(true);
+    }
+  };
+
+  // ✅ Cancel activity - if focus time >= 10 minutes, treat as end session with form
+  const handleCancelActivity = () => {
+    setIsRunning(false);
+    
+    // Calculate total focus time accumulated
+    const totalFocus =
+      totalAccumulatedFocus +
+      (mode === "focus" ? focusMinutes * 60 - focusSeconds : 0);
+    
+    // If accumulated more than 10 minutes (600 seconds), show form like end session
+    if (totalFocus >= 600) {
+      if (onComplete) {
+        onComplete(totalFocus, usedBreakReps, breakSessions);
+      }
+    }
+    
+    // ✅ Clear timer state from localStorage when cancelled
+    localStorage.removeItem("streakTimerState");
+    setShowEndSessionModal(false);
+    onClose(); // Close the timer
   };
 
   // ✅ End session early - save accumulated focus time and complete
   const handleEndSession = async () => {
     try {
       setIsRunning(false);
-
-      // ✅ Call API to end streak session if streakId exists
-      if (streakId) {
-        const token = localStorage.getItem("authToken");
-        if (token) {
-          await fetch(`/api/streaks/${streakId}/end-session`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ confirm: "END" }),
-          });
-        }
-      }
 
       // Calculate total focus time accumulated
       const totalFocus =
@@ -416,8 +417,8 @@ export default function StreakTimerModal({
       // ✅ Clear timer state from localStorage when session ends
       localStorage.removeItem("streakTimerState");
       
-      handleClose();
       setShowEndSessionModal(false);
+      onClose(); // Call the parent onClose to actually close/cancel the activity
     } catch (error) {
       console.error("Error ending session:", error);
       showError("Failed to end session. Please try again.");
@@ -426,14 +427,20 @@ export default function StreakTimerModal({
 
   // ✅ Confirm handler for popup
   const confirmEndSession = () => {
-    setShowEndSessionModal(false);
-    handleEndSession();
+    if (confirmAction === "cancel") {
+      handleCancelActivity();
+    } else {
+      handleEndSession();
+    }
   };
 
-  // ✅ Cancel handler for popup
+  // ✅ Cancel handler for popup - resume timer
   const cancelEndSession = () => {
     setShowEndSessionModal(false);
-    setIsRunning(true); // Resume timer
+    setConfirmAction("cancel"); // Reset to default state
+    if (confirmAction === "end") {
+      setIsRunning(true); // Resume timer only if user was confirming end session
+    }
   };
 
   // Minimized view
@@ -509,26 +516,48 @@ export default function StreakTimerModal({
             <div className="text-sm font-medium text-[#161d36] truncate flex-1">
               {title}
             </div>
-            <button
-              onClick={() => setIsMinimized(true)}
-              className="ml-2 text-[#161d36] hover:text-gray-600 shrink-0 p-0.5 transition-colors"
-              aria-label="Minimize timer"
-              title="Minimize"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="flex gap-1">
+              <button
+                onClick={() => setIsMinimized(true)}
+                className="text-[#161d36] hover:text-gray-600 shrink-0 p-0.5 transition-colors"
+                aria-label="Minimize timer"
+                title="Minimize"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M20 12H4"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M20 12H4"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => setShowEndSessionModal(true)}
+                className="text-[#161d36] hover:text-red-600 shrink-0 p-0.5 transition-colors"
+                aria-label="Cancel activity"
+                title="Cancel Activity"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Content */}
@@ -592,13 +621,18 @@ export default function StreakTimerModal({
                   </button>
                 )}
 
-                {/* ✅ End Session Button */}
-                <button
-                  onClick={() => setShowEndSessionModal(true)}
-                  className="w-full text-sm font-medium py-2 rounded-sm transition-colors bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 mt-2"
-                >
-                  End Session
-                </button>
+                {/* ✅ End Session Button - Only show when session has started */}
+                {isRunning && (
+                  <button
+                    onClick={() => {
+                      setConfirmAction("end");
+                      setShowEndSessionModal(true);
+                    }}
+                    className="w-full text-sm font-medium py-2 rounded-sm transition-colors bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 mt-2"
+                  >
+                    End Session
+                  </button>
+                )}
               </>
             )}
 
@@ -630,13 +664,18 @@ export default function StreakTimerModal({
                     </button>
                   </>
                 )}
-                {/* ✅ End Session Button in Break Mode */}
-                <button
-                  onClick={() => setShowEndSessionModal(true)}
-                  className="w-full text-sm font-medium py-2 rounded-sm transition-colors bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 mt-2"
-                >
-                  End Session
-                </button>
+                {/* ✅ End Session Button in Break Mode - Only show when break is running */}
+                {isRunning && (
+                  <button
+                    onClick={() => {
+                      setConfirmAction("end");
+                      setShowEndSessionModal(true);
+                    }}
+                    className="w-full text-sm font-medium py-2 rounded-sm transition-colors bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 mt-2"
+                  >
+                    End Session
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -772,13 +811,18 @@ export default function StreakTimerModal({
                 </button>
               )}
 
-              {/* ✅ End Session Button - Mobile Focus Mode */}
-              <button
-                onClick={() => setShowEndSessionModal(true)}
-                className="w-full text-base font-bold py-3 rounded-lg transition-all bg-red-50 border border-red-300 text-red-600 active:bg-red-100 active:scale-95"
-              >
-                End Session
-              </button>
+              {/* ✅ End Session Button - Mobile Focus Mode - Only show when session has started */}
+              {isRunning && (
+                <button
+                  onClick={() => {
+                    setConfirmAction("end");
+                    setShowEndSessionModal(true);
+                  }}
+                  className="w-full text-base font-bold py-3 rounded-lg transition-all bg-red-50 border border-red-300 text-red-600 active:bg-red-100 active:scale-95"
+                >
+                  End Session
+                </button>
+              )}
             </>
           )}
 
@@ -811,13 +855,18 @@ export default function StreakTimerModal({
                 </>
               )}
 
-              {/* ✅ End Session Button - Mobile Break Mode */}
-              <button
-                onClick={() => setShowEndSessionModal(true)}
-                className="w-full text-base font-bold py-3 rounded-lg transition-all bg-red-50 border border-red-300 text-red-600 active:bg-red-100 active:scale-95 mt-2"
-              >
-                End Session
-              </button>
+              {/* ✅ End Session Button - Mobile Break Mode - Only show when break is running */}
+              {isRunning && (
+                <button
+                  onClick={() => {
+                    setConfirmAction("end");
+                    setShowEndSessionModal(true);
+                  }}
+                  className="w-full text-base font-bold py-3 rounded-lg transition-all bg-red-50 border border-red-300 text-red-600 active:bg-red-100 active:scale-95 mt-2"
+                >
+                  End Session
+                </button>
+              )}
             </>
           )}
         </div>
@@ -836,30 +885,36 @@ export default function StreakTimerModal({
           <div className="relative z-10 bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4 animate-in fade-in zoom-in duration-200">
             {/* Modal Title */}
             <h3 className="text-xl font-bold text-[#161d36] mb-2 text-center">
-              End Session?
+              {confirmAction === "cancel" ? "Cancel Activity?" : "End Session?"}
             </h3>
 
             {/* Modal Message */}
             <p className="text-center text-gray-600 text-sm mb-6">
-              Your session progress will be saved. Are you sure you want to end?
+              {confirmAction === "cancel"
+                ? "This activity will not be saved. Are you sure you want to cancel?"
+                : "Your session progress will be saved. Are you sure you want to end?"}
             </p>
 
             {/* Buttons Container */}
             <div className="flex gap-3">
-              {/* Continue Button */}
+              {/* Continue/No Button */}
               <button
                 onClick={cancelEndSession}
                 className="flex-1 px-4 py-3 rounded-lg font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95"
               >
-                Continue
+                {confirmAction === "cancel" ? "Continue" : "No"}
               </button>
 
-              {/* End Session Button */}
+              {/* Confirm Button */}
               <button
                 onClick={confirmEndSession}
-                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors active:scale-95"
+                className={`flex-1 px-4 py-3 rounded-lg font-semibold text-white transition-colors active:scale-95 ${
+                  confirmAction === "cancel"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-orange-600 hover:bg-orange-700"
+                }`}
               >
-                End Session
+                {confirmAction === "cancel" ? "Cancel" : "End"}
               </button>
             </div>
           </div>

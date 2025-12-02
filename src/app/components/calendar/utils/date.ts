@@ -46,6 +46,15 @@ export const getDurationText = (
   return `${hours}j ${mins}m`;
 };
 
+export const getDurationInMinutes = (
+  startTime: string,
+  endTime: string
+): number => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  return differenceInMinutes(end, start);
+};
+
 export const getEventDimensions = (
   startTime: string,
   endTime: string,
@@ -60,6 +69,7 @@ export const getEventDimensions = (
   const rowHeight = 64; // h-16 in Tailwind = 4rem = 64px
   const top = Math.max(0, (diffMinutes / 60) * rowHeight);
 
+  // Calculate height based on actual duration from startTime to endTime
   const durationMinutes = differenceInMinutes(end, start);
   const height = Math.max(rowHeight * 0.4, (durationMinutes / 60) * rowHeight);
 

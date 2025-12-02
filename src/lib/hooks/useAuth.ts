@@ -38,12 +38,15 @@ interface VerifyEmailPayload {
 }
 
 interface AuthResponse {
-  id: number;
-  name: string;
-  email: string;
+  id?: number;
+  name?: string;
+  email?: string;
   token?: string;
   message?: string;
   verified?: boolean;
+  verificationToken?: string;
+  verificationCode?: string;
+  expiresIn?: string;
 }
 
 interface UseAuthReturn {
@@ -98,10 +101,19 @@ export function useAuth(): UseAuthReturn {
       const stored = localStorage.getItem("user");
       if (stored) {
         const userData = JSON.parse(stored) as User;
-        safeSetState(setUser, userData);
+        // Validate that user data has required fields
+        if (!userData.id || !userData.email || !userData.name) {
+          console.warn("[useAuth] Invalid user data in localStorage, clearing");
+          localStorage.removeItem("user");
+          localStorage.removeItem("authToken");
+          safeSetState(setUser, null);
+        } else {
+          safeSetState(setUser, userData);
+        }
       }
     } catch (err) {
-      console.error("Failed to load user from storage:", err);
+      localStorage.removeItem("user");
+      localStorage.removeItem("authToken");
     } finally {
       safeSetState(setIsLoading, false);
     }
@@ -127,7 +139,9 @@ export function useAuth(): UseAuthReturn {
         const data = await response.json();
 
         if (!response.ok) {
-          safeSetState(setError, data.message || "Login failed");
+          const errorMessage = data.message || "Login failed";
+          safeSetState(setError, errorMessage);
+          safeSetState(setIsLoading, false);
           return null;
         }
 
@@ -144,14 +158,14 @@ export function useAuth(): UseAuthReturn {
         document.cookie = `authToken=${data.token}; path=/; max-age=86400`;
 
         safeSetState(setUser, userData);
+        safeSetState(setIsLoading, false);
         return data;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "An error occurred";
         safeSetState(setError, message);
-        return null;
-      } finally {
         safeSetState(setIsLoading, false);
+        return null;
       }
     },
     [safeSetState]
@@ -177,26 +191,31 @@ export function useAuth(): UseAuthReturn {
         const data = await response.json();
 
         if (!response.ok) {
-          safeSetState(setError, data.message || "Registration failed");
+          const errorMessage = data.message || "Registration failed";
+          safeSetState(setError, errorMessage);
+          safeSetState(setIsLoading, false);
           return null;
         }
 
         // ✅ Registration successful - return the response
         // User should log in manually after registration
+        safeSetState(setIsLoading, false);
         return {
           id: data.id,
           name: data.name,
           email: data.email,
           token: data.token,
           message: data.message,
+          verificationToken: data.verificationToken,
+          verificationCode: data.verificationCode,
+          expiresIn: data.expiresIn,
         };
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "An error occurred";
         safeSetState(setError, message);
-        return null;
-      } finally {
         safeSetState(setIsLoading, false);
+        return null;
       }
     },
     [safeSetState]
@@ -211,8 +230,8 @@ export function useAuth(): UseAuthReturn {
     // Clear cookie
     document.cookie = "authToken=; path=/; max-age=0";
     // Call logout API endpoint
-    fetch("/api/auth/logout", { method: "POST" }).catch((err) => {
-      console.error("Logout API error:", err);
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {
+      // Silently fail - user is already logged out client-side
     });
     safeSetState(setUser, null);
     // Redirect to landing page
@@ -258,7 +277,6 @@ export function useAuth(): UseAuthReturn {
       safeSetState(setUser, user);
       return user;
     } catch (err) {
-      console.error("Failed to get current user:", err);
       return null;
     }
   }, [safeSetState]);

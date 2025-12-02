@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
+import { isDatabaseConnectionError, getDatabaseErrorResponse } from "@/lib/databaseErrorHandler";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -82,7 +83,14 @@ export async function GET(req: Request) {
 
     return NextResponse.json(user);
   } catch (error) {
-    console.error("Get user error:", error);
+    // Check if it's a database connection error
+    if (isDatabaseConnectionError(error)) {
+      const errorData = getDatabaseErrorResponse();
+      return NextResponse.json(
+        { message: errorData.message, hint: errorData.hint },
+        { status: errorData.status }
+      );
+    }
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

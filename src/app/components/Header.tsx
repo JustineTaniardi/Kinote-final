@@ -110,38 +110,73 @@ export default function Header() {
     };
   }, [isDropdownOpen]);
   useEffect(() => {
-    const sections = Array.from(
-      document.querySelectorAll<HTMLElement>("section")
-    ).filter((s) => ["home", "feature", "about"].includes(s.id));
+    const getElements = () => {
+      // Get all elements with id that matches sections
+      const homeEl = document.getElementById("home");
+      const featureEl = document.getElementById("feature");
+      const aboutEl = document.getElementById("about");
+      
+      const elements = [homeEl, featureEl, aboutEl].filter((el): el is HTMLElement => el !== null);
+      
+      // Debug log on first load
+      if (elements.length > 0 && lastSection.current === "") {
+        console.log("[Header] Found sections:", elements.map(el => ({ id: el.id, offsetTop: el.offsetTop })));
+      }
+      
+      return elements;
+    };
 
-    let scrollTimeout: number | undefined;
+    let scrollTimeout: NodeJS.Timeout | null = null;
 
     const handleScroll = () => {
-      if (scrollTimeout) window.clearTimeout(scrollTimeout);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
 
-      scrollTimeout = window.setTimeout(() => {
-        const top = window.scrollY;
-        let current = lastSection.current;
-        for (const section of sections) {
-          const offset = section.offsetTop - HEADER_OFFSET - 1;
-          const height = section.offsetHeight;
-          if (top >= offset && top < offset + height) {
-            current = section.id;
+      scrollTimeout = setTimeout(() => {
+        const sections = getElements();
+        
+        // Skip if no sections found
+        if (sections.length === 0) return;
+        
+        const scrollTop = window.scrollY;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        
+        // Check if user is at the very bottom of the page
+        const distanceFromBottom = documentHeight - (scrollTop + windowHeight);
+        const isAtBottom = distanceFromBottom < 50;
+        
+        if (isAtBottom) {
+          if ("about" !== lastSection.current) {
+            lastSection.current = "about";
+            setActiveSection("about");
+          }
+          return;
+        }
+        
+        // Find the section that contains the current scroll position
+        for (let i = sections.length - 1; i >= 0; i--) {
+          const section = sections[i];
+          const sectionTop = section.offsetTop;
+          
+          // Check if we're at this section (with 100px buffer for earlier trigger)
+          if (scrollTop >= sectionTop - 100) {
+            const sectionId = section.id;
+            if (sectionId !== lastSection.current) {
+              lastSection.current = sectionId;
+              setActiveSection(sectionId);
+              console.log("[Header] Section changed to:", sectionId);
+            }
             break;
           }
         }
-
-        if (current !== lastSection.current) {
-          lastSection.current = current;
-          setActiveSection(current);
-        }
-      }, 80);
+      }, 50);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
+    
     return () => {
-      if (scrollTimeout) window.clearTimeout(scrollTimeout);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);

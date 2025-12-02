@@ -7,6 +7,7 @@ interface Props {
   entry: StreakEntry;
   onOpen: (entry: StreakEntry) => void;
   onStart?: (entry: StreakEntry) => void;
+  refreshTrigger?: number;
 }
 
 function formatMinutes(mins: number) {
@@ -22,20 +23,24 @@ function extractDaysText(days?: string[]): string {
   return days.join(", ");
 }
 
-export default function ActivityItem({ entry, onOpen, onStart }: Props) {
+export default function ActivityItem({ entry, onOpen, onStart, refreshTrigger }: Props) {
   const [streakCount, setStreakCount] = useState(0);
 
-  // Fetch streak count from API
+  // Fetch streak count from API - use same endpoint as StreakDetailSidebar
   useEffect(() => {
     const fetchStreakCount = async () => {
       try {
-        const response = await fetch(`/api/streaks/${entry.id}`);
-        if (response.ok) {
-          const streak = await response.json();
-          // Count the histories for this streak
-          if (streak.histories) {
-            setStreakCount(streak.histories.length);
+        const token = localStorage.getItem("authToken");
+        const response = await fetch(
+          `/api/streaks/${entry.id}/history?page=1&limit=1`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
           }
+        );
+        if (response.ok) {
+          const result = await response.json();
+          // Get total count from API response
+          setStreakCount(result.total || 0);
         }
       } catch (error) {
         console.error("Error fetching streak count:", error);
@@ -46,7 +51,7 @@ export default function ActivityItem({ entry, onOpen, onStart }: Props) {
     if (entry.id) {
       fetchStreakCount();
     }
-  }, [entry.id]);
+  }, [entry.id, refreshTrigger]);
   return (
     <div
       onClick={() => onOpen(entry)}

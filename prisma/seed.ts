@@ -45,65 +45,37 @@ async function main() {
 
     // ============ CATEGORIES ============
     console.log("📚 Seeding Categories...");
-    const studyCategory = await prisma.category.create({
-      data: { name: "Study" },
-    });
-    const workoutCategory = await prisma.category.create({
-      data: { name: "Workout" },
-    });
-    const readingCategory = await prisma.category.create({
-      data: { name: "Reading" },
-    });
-    const codingCategory = await prisma.category.create({
-      data: { name: "Coding" },
-    });
+    const categoriesData = [
+      { name: "Study", subCategories: ["Math", "Science", "Programming Basics", "History", "Literature"] },
+      { name: "Workout", subCategories: ["Cardio", "Strength Training", "Yoga", "Pilates", "Stretching"] },
+      { name: "Reading", subCategories: ["Novel", "Self-Improvement", "Textbook", "Articles", "Comics"] },
+      { name: "Coding", subCategories: ["Frontend", "Backend", "Algorithms", "Database", "DevOps"] },
+      { name: "Work", subCategories: ["Projects", "Meetings", "Documentation", "Code Review", "Planning"] },
+      { name: "Creative", subCategories: ["Drawing", "Music", "Writing", "Photography", "Design"] },
+      { name: "Health", subCategories: ["Nutrition", "Mental Wellness", "Sleep", "Meditation", "Gym"] },
+      { name: "Entertainment", subCategories: ["Movies", "Gaming", "TV Shows", "Podcasts", "Streaming"] },
+      { name: "Learning", subCategories: ["Online Courses", "Languages", "Certifications", "Webinars", "Tutorials"] },
+      { name: "Personal", subCategories: ["Goals", "Habits", "Hobbies", "Travel", "Social"] },
+    ];
+
+    const categories = [];
+    for (const catData of categoriesData) {
+      const category = await prisma.category.create({
+        data: { name: catData.name },
+      });
+      categories.push(category);
+    }
 
     // ============ SUBCATEGORIES ============
     console.log("📂 Seeding SubCategories...");
     
-    // Study subcategories
-    await prisma.subCategory.create({
-      data: { name: "Math", categoryId: studyCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Science", categoryId: studyCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Programming Basics", categoryId: studyCategory.id },
-    });
-
-    // Workout subcategories
-    await prisma.subCategory.create({
-      data: { name: "Cardio", categoryId: workoutCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Strength Training", categoryId: workoutCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Yoga", categoryId: workoutCategory.id },
-    });
-
-    // Reading subcategories
-    await prisma.subCategory.create({
-      data: { name: "Novel", categoryId: readingCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Self-Improvement", categoryId: readingCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Textbook", categoryId: readingCategory.id },
-    });
-
-    // Coding subcategories
-    await prisma.subCategory.create({
-      data: { name: "Frontend", categoryId: codingCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Backend", categoryId: codingCategory.id },
-    });
-    await prisma.subCategory.create({
-      data: { name: "Algorithms", categoryId: codingCategory.id },
-    });
+    for (let i = 0; i < categoriesData.length; i++) {
+      for (const subCatName of categoriesData[i].subCategories) {
+        await prisma.subCategory.create({
+          data: { name: subCatName, categoryId: categories[i].id },
+        });
+      }
+    }
 
     // ============ DAYS ============
     console.log("📅 Seeding Days...");

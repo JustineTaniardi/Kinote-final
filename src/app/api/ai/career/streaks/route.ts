@@ -11,8 +11,8 @@ function getUserIdFromRequest(req: Request): number | null {
 
   try {
     const token = authHeader.substring(7);
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded.id;
+    const decoded = jwt.verify(token, JWT_SECRET) as Record<string, unknown>;
+    return (decoded.id as number) || null;
   } catch {
     return null;
   }
@@ -70,17 +70,27 @@ export async function GET(req: Request) {
         histories: {
           select: {
             duration: true,
+            description: true,
+            createdAt: true,
+            title: true,
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
+    // Filter streaks with at least 10 history records
+    const filteredStreaks = streaks.filter((streak) => streak.histories.length >= 10);
+
     // Add calculated stats
-    const streaksWithStats = streaks.map((streak) => ({
+    const streaksWithStats = filteredStreaks.map((streak) => ({
       ...streak,
       totalSessions: streak.histories.length,
       totalDuration: streak.histories.reduce((sum, h) => sum + (h.duration || 0), 0),
+      historyCount: streak.histories.length,
     }));
 
     return NextResponse.json(streaksWithStats);

@@ -40,6 +40,12 @@ export default function ActivityDetailSidebar({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
+  const handleExport = () => {
+    if (item) {
+      window.location.href = `/export/${item.id}`;
+    }
+  };
+
   useEffect(() => {
     let t: NodeJS.Timeout;
     if (isOpen) {
@@ -72,24 +78,32 @@ export default function ActivityDetailSidebar({
   return (
     <SidebarWrapper isOpen={isOpen} onClose={onClose} width="400px">
       {/* Header with Activity Title (Read-Only) */}
-      <div className="px-6 py-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            {/* Read-only Title Display in Header */}
-            <div className="text-lg font-semibold text-gray-900 truncate">
-              {item.judul}
-            </div>
-            <div className="text-sm text-gray-500 mt-1">
-              {item.kategori}
-              {item.subcategory && ` | ${item.subcategory}`}
-            </div>
-          </div>
+      <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <button
+            onClick={handleExport}
+            className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2 whitespace-nowrap"
+            title="Export activity"
+          >
+            <span>📤</span>
+            <span>Export</span>
+          </button>
           <button
             onClick={onClose}
-            className="text-gray-600 hover:text-gray-900 text-2xl leading-none transition shrink-0"
+            className="text-gray-600 hover:text-gray-900 text-2xl leading-none transition p-1"
           >
             ✕
           </button>
+        </div>
+        <div>
+          {/* Read-only Title Display in Header */}
+          <div className="text-lg font-semibold text-gray-900 truncate">
+            {item.judul}
+          </div>
+          <div className="text-sm text-gray-500 mt-1">
+            {item.kategori}
+            {item.subcategory && ` | ${item.subcategory}`}
+          </div>
         </div>
       </div>
 

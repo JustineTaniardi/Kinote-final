@@ -9,9 +9,10 @@ interface Props {
   activities: StreakEntry[];
   onOpen: (entry: StreakEntry) => void;
   onStart: (entry: StreakEntry) => void;
+  refreshTrigger?: number;
 }
 
-export default function StreakWeeklyColumn({ day, activities, onOpen, onStart }: Props) {
+export default function StreakWeeklyColumn({ day, activities, onOpen, onStart, refreshTrigger }: Props) {
   return (
     <div className="flex flex-col" style={{ minWidth: "220px", flexShrink: 0 }}>
       {/* Activities Column - vertical stacking with consistent spacing */}
@@ -26,6 +27,7 @@ export default function StreakWeeklyColumn({ day, activities, onOpen, onStart }:
                 entry={entry}
                 onOpen={onOpen}
                 onStart={onStart}
+                refreshTrigger={refreshTrigger}
               />
             </div>
           ))

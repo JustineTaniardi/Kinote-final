@@ -13,8 +13,8 @@ function getUserIdFromRequest(req: Request): number | null {
 
   try {
     const token = authHeader.substring(7);
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded.id;
+    const decoded = jwt.verify(token, JWT_SECRET) as Record<string, unknown>;
+    return (decoded.id as number) || null;
   } catch {
     return null;
   }
@@ -105,14 +105,24 @@ export async function POST(req: Request) {
     }
 
     if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY is not set in environment variables");
       return NextResponse.json(
-        { error: "OpenAI key missing" },
+        { error: "OpenAI key missing. Please set OPENAI_API_KEY in environment variables." },
+        { status: 500 }
+      );
+    }
+
+    // Validate API key format
+    if (!OPENAI_API_KEY.startsWith("sk-")) {
+      console.error("OPENAI_API_KEY has invalid format. Should start with 'sk-'");
+      return NextResponse.json(
+        { error: "OpenAI API key has invalid format. Please check your environment variables." },
         { status: 500 }
       );
     }
 
     const body = await req.json();
-    const { streakIds, purpose } = body;
+    let { streakIds, purpose } = body;
 
     if (!streakIds || !Array.isArray(streakIds) || streakIds.length === 0) {
       return NextResponse.json(
@@ -121,7 +131,13 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!purpose || !["Lomba", "Pekerjaan", "Kursus"].includes(purpose)) {
+    // Default purpose to 'Pekerjaan' if not provided
+    if (!purpose) {
+      purpose = "Pekerjaan";
+    }
+
+    // Validate purpose if provided
+    if (!["Lomba", "Pekerjaan", "Kursus"].includes(purpose)) {
       return NextResponse.json(
         { message: "purpose must be one of: Lomba, Pekerjaan, Kursus" },
         { status: 400 }
@@ -138,8 +154,14 @@ export async function POST(req: Request) {
         histories: {
           select: {
             duration: true,
+            description: true,
+            title: true,
             createdAt: true,
           },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 10, // Get last 10 history records
         },
         category: true,
         subCategory: true,
@@ -152,29 +174,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    // Fetch user's tasks/checklist
-    const tasks = await prisma.task.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        status: {
-          select: {
-            name: true,
-          },
-        },
-        difficulty: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      take: 20, // Get last 20 tasks
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
 
     // Build source data
     const sourceData = {
@@ -189,68 +188,60 @@ export async function POST(req: Request) {
         category: s.category?.name,
         subCategory: s.subCategory?.name,
         sessions: s.histories.length,
-      })),
-      checklist: {
-        totalTasks: tasks.length,
-        completedTasks: tasks.filter((t) => t.status.name === "completed").length,
-        pendingTasks: tasks.filter((t) => t.status.name !== "completed").length,
-        tasks: tasks.map((t) => ({
-          title: t.title,
-          priority: t.priority,
-          status: t.status.name,
-          difficulty: t.difficulty.name,
-          description: t.description,
+        description: s.description,
+        recentHistories: s.histories.map((h) => ({
+          title: h.title,
+          description: h.description,
+          duration: h.duration,
+          date: h.createdAt,
         })),
-      },
+      })),
     };
 
     // Build prompt for OpenAI
-    const purposeMap: { [key: string]: string } = {
-      "Lomba": "competition opportunities",
-      "Pekerjaan": "career paths and job opportunities",
-      "Kursus": "courses and learning programs"
+    const streakTitles = sourceData.streaks.map((s) => s.title).join(", ");
+    
+    // Get recent history descriptions
+    const recentHistoriesText = sourceData.streaks
+      .flatMap((s) => 
+        s.recentHistories.map((h) => `- ${h.title}: ${h.description || "No description"}`)
+      )
+      .join("\n");
+
+    // Purpose-specific context for tips
+    const purposeContext: { [key: string]: string } = {
+      "Lomba": "Berikan tips SPESIFIK untuk kompetisi. Fokus: strategi menang, teknik kompetitor, psikologi kompetisi.",
+      "Pekerjaan": "Berikan tips SPESIFIK untuk karir profesional. Fokus: soft skills, hard skills, strategi mendapat pekerjaan.",
+      "Kursus": "Berikan tips SPESIFIK untuk pembelajaran. Fokus: belajar efektif, topik penting, sertifikasi."
     };
 
-    const purposeDescription = purposeMap[purpose] || purpose;
-    
-    const streakTitles = sourceData.streaks.map((s: any) => s.title).join(", ");
-    const streakCategories = sourceData.streaks.map((s: any) => s.category).filter(Boolean).join(", ");
+    const purposeContextText = purposeContext[purpose] || "Berikan tips praktis untuk bidang ini.";
 
-    const promptString = `BERIKAN ANALISIS LENGKAP DALAM FORMAT JSON YANG BENAR.
+    const promptString = `Analisis pembelajaran user berdasarkan 10 history terakhir.
+Aktivitas: ${streakTitles}
+Tujuan: ${purpose}
+${purposeContextText}
 
-Streaks yang dianalisis: ${streakTitles}
-Purpose: ${purpose}
-Data: ${JSON.stringify(sourceData)}
+Riwayat:
+${recentHistoriesText}
 
-JAWAB DENGAN JSON BERIKUT (JANGAN KECIL FIELD APAPUN):
-- personality_tendencies: Deskripsi kepribadian
-- strengths: Array 4 kekuatan/keahlian
-- weaknesses: Array 3 kelemahan
-- recommended_${purpose.toLowerCase()}: Array rekomendasi dengan 5+ links per item (format: "Judul - url1 / url2 / url3 / url4 / url5")
-- roadmap: Array 4 langkah
-- recommended_learning: Array 3+ materi pembelajaran dengan links
-
-CONTOH LINK: "Belajar React - https://dicoding.com / https://sanbercode.com / https://buildwithangga.com / https://udemy.com / https://coursera.org"
-
-OUTPUT HANYA JSON VALID, TIDAK ADA TEKS LAIN.`;
-
-    const systemPrompt = `Anda adalah AI Career Coach Indonesia. INSTRUKSI WAJIB - OUTPUT HARUS JSON LENGKAP:
-
+OUTPUT HANYA JSON (tanpa teks lain):
 {
-  "personality_tendencies": "string deskripsi kepribadian",
-  "strengths": ["kekuatan 1", "kekuatan 2", "kekuatan 3", "kekuatan 4"],
-  "weaknesses": ["kelemahan 1", "kelemahan 2", "kelemahan 3"],
-  "recommended_pekerjaan": ["rekomendasi 1 - https://linkedin.com / https://jobdb.com / https://glints.com / https://bekerja.com / https://indeed.com", "rekomendasi 2 - link 5 platform"],
-  "recommended_lomba": ["kompetisi 1 - https://kompetisi.com / https://hackfest.id / https://codeforces.com / https://kaggle.com / https://ictday.id", "kompetisi 2 - link 5 platform"],
-  "recommended_kursus": ["kursus 1 - https://dicoding.com / https://sanbercode.com / https://buildwithangga.com / https://coursera.org / https://udemy.com", "kursus 2 - link 5 platform"],
-  "roadmap": ["langkah 1", "langkah 2", "langkah 3", "langkah 4"],
-  "recommended_learning": ["materi 1 - https://platform1.com / https://platform2.com / https://platform3.com / https://platform4.com / https://platform5.com", "materi 2 - link 5 platform"]
-}
+  "learning_conclusion": "Kesimpulan singkat apa yang dipelajari",
+  "strengths": ["strength 1", "strength 2", "strength 3", "strength 4"],
+  "areas_to_improve": ["area 1", "area 2", "area 3"],
+  "tips_and_tricks": ["tip 1 DETAIL untuk ${purpose}", "tip 2 DETAIL untuk ${purpose}", "tip 3 DETAIL untuk ${purpose}", "tip 4 DETAIL untuk ${purpose}", "tip 5 DETAIL untuk ${purpose}"],
+  "recommended_resources": ["Nama - https://link1.com / https://link2.com / https://link3.com", "Nama2 - https://link1.com / https://link2.com / https://link3.com"]
+}`;
 
-PENTING: Ganti "recommended_pekerjaan/recommended_lomba/recommended_kursus" sesuai PURPOSE, tapi SELALU include recommended_learning. Setiap recommendation WAJIB include 5+ LINKS dengan format " / " (spasi-slash-spasi). RETURN HANYA JSON, TIDAK ADA TEKS LAIN.`;
+    const systemPrompt = `Anda adalah AI Learning Coach. Analisis 10 history terakhir user dan berikan insight singkat tapi valuable.
+Tips HARUS SPESIFIK untuk tujuan user (Lomba/Pekerjaan/Kursus), bukan tips umum.
+OUTPUT HANYA JSON, TIDAK ADA TEKS LAIN.`;
 
     // Call OpenAI
     const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+    console.log("Calling OpenAI with model: gpt-3.5-turbo, purpose:", purpose);
 
     const completion = await client.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -264,8 +255,8 @@ PENTING: Ganti "recommended_pekerjaan/recommended_lomba/recommended_kursus" sesu
           content: promptString,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 2500,
+      temperature: 0.5,
+      max_tokens: 1500,
     });
 
     const aiText = completion.choices[0].message?.content;
@@ -277,11 +268,11 @@ PENTING: Ganti "recommended_pekerjaan/recommended_lomba/recommended_kursus" sesu
     }
 
     // Parse JSON response
-    let parsed;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(aiText);
-    } catch (e) {
-      console.error("Failed to parse AI response:", aiText);
+    } catch (error) {
+      console.error("Failed to parse AI response:", aiText, error);
       return NextResponse.json(
         { message: "Invalid response format from AI" },
         { status: 500 }
@@ -289,7 +280,7 @@ PENTING: Ganti "recommended_pekerjaan/recommended_lomba/recommended_kursus" sesu
     }
 
     // Save analysis to database
-    const analysis = await prisma.aiAnalysis.create({
+    await prisma.aiAnalysis.create({
       data: {
         userId,
         purpose,
@@ -308,8 +299,34 @@ PENTING: Ganti "recommended_pekerjaan/recommended_lomba/recommended_kursus" sesu
     );
   } catch (error) {
     console.error("Analyze career error:", error);
+    
+    // Check if error is an OpenAI API error
+    const errorObj = error as Record<string, unknown>;
+    if (errorObj.code === 'invalid_api_key' || errorObj.status === 401) {
+      return NextResponse.json(
+        { 
+          message: "OpenAI API key is invalid or expired. Please check your environment variables.",
+          code: "INVALID_API_KEY"
+        },
+        { status: 401 }
+      );
+    }
+    
+    if (errorObj.code === 'rate_limit_exceeded' || errorObj.status === 429) {
+      return NextResponse.json(
+        { 
+          message: "OpenAI API rate limit exceeded. Please try again later.",
+          code: "RATE_LIMIT"
+        },
+        { status: 429 }
+      );
+    }
+    
     return NextResponse.json(
-      { message: "Internal server error" },
+      { 
+        message: "Internal server error while analyzing. Please try again.",
+        details: errorObj.message || String(error)
+      },
       { status: 500 }
     );
   }

@@ -8,9 +8,21 @@ interface EventCardProps {
 }
 
 const difficultyColorMap = {
-  easy: "bg-[#161D36]",
-  medium: "bg-[#161D36]",
-  hard: "bg-[#161D36]",
+  easy: {
+    bg: "bg-green-100",
+    border: "border-green-500",
+    text: "text-green-900",
+  },
+  medium: {
+    bg: "bg-blue-100",
+    border: "border-blue-500",
+    text: "text-blue-900",
+  },
+  hard: {
+    bg: "bg-red-100",
+    border: "border-red-500",
+    text: "text-red-900",
+  },
 };
 
 export default function EventCard({ event, top, height }: EventCardProps) {
@@ -18,13 +30,13 @@ export default function EventCard({ event, top, height }: EventCardProps) {
   const endTimeFormatted = formatTime(new Date(event.endTime));
   const duration = getDurationText(event.startTime, event.endTime);
 
-  const bgColor =
+  const colors =
     difficultyColorMap[event.difficulty as keyof typeof difficultyColorMap] ||
-    "bg-[#161D36]";
+    difficultyColorMap.medium;
 
   return (
     <div
-      className={`absolute left-1 right-1 ${bgColor} rounded-md p-2 text-white text-xs shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow`}
+      className={`absolute left-1 right-1 ${colors.bg} ${colors.border} ${colors.text} rounded-md p-2 text-xs shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-2`}
       style={{
         top: `${top}px`,
         height: `${height}px`,

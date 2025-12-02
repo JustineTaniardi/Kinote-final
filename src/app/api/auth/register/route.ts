@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { validateEmail, validatePassword, validateName } from "@/lib/validation";
 import { rateLimiter } from "@/lib/rateLimiter";
+import { sendEmail } from "@/lib/mailer";
+import { generateResetToken, generateVerificationCode, getVerificationEmailTemplate } from "@/lib/emailTemplates";
+import { storePendingRegistration } from "@/lib/pendingRegistrationsStore";
+import { storeVerificationCode } from "@/lib/verificationCodeStore";
+import { isDatabaseConnectionError, getDatabaseErrorResponse } from "@/lib/databaseErrorHandler";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -115,43 +119,86 @@ export async function POST(req: Request) {
       );
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      return NextResponse.json(
-        { message: "Email already registered" },
-        { status: 409 }
-      );
+    // Try to check if email exists
+    let existing = null;
+    try {
+      existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        // Email already exists in database
+        if (existing.emailVerifiedAt) {
+          // Email is verified - cannot register
+          return NextResponse.json(
+            { message: "Email already registered. Please log in instead." },
+            { status: 409 }
+          );
+        } else {
+          // Email exists but not verified - allow re-registration with new code
+          // Continue to send new verification code
+          }
+      }
+    } catch (dbError) {
+      console.warn("Database unavailable for duplicate check");
+      // Check if it's a connection error
+      if (isDatabaseConnectionError(dbError)) {
+        const errorData = getDatabaseErrorResponse();
+        return NextResponse.json(
+          { message: errorData.message, hint: errorData.hint },
+          { status: errorData.status }
+        );
+      }
+      // Other database errors
+      throw dbError;
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashed,
-      },
+    // Generate verification token
+    const verificationToken = generateResetToken();
+
+    // Store temporary registration data (user not yet created in DB)
+    await storePendingRegistration(email, {
+      name,
+      email,
+      password: hashedPassword,
+      token: verificationToken,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
     });
 
-    // Generate auth token
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
-    return NextResponse.json(
-      {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        token,
-        message: "Registration successful. You can now log in.",
-      },
-      { status: 201 }
-    );
+    // Send verification email with 6-digit code
+    try {
+      const verificationCode = generateVerificationCode();
+      
+      // Store verification code in memory
+      storeVerificationCode(email, verificationCode, 10); // 10 minutes
+      
+      const emailTemplate = getVerificationEmailTemplate(name, verificationCode);
+      
+      await sendEmail({
+        to: email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+      });
+      
+      return NextResponse.json(
+        {
+          message: "Registration successful. Please check your email to verify your account.",
+          email,
+          verificationToken,
+          verificationCode, // For development/testing only - remove in production
+          expiresIn: "10 minutes",
+        },
+        { status: 201 }
+      );
+    } catch (emailError) {
+      return NextResponse.json(
+        { message: "Failed to send verification email. Please try again." },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error("Register error:", error);
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "Registration failed. Please try again later." },
       { status: 500 }
     );
   }

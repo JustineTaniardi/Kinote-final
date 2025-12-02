@@ -163,57 +163,23 @@ export default function StreakHistoryDetailModal({
                     {formatTime(item.startTime)}
                   </p>
                 </div>
-
-                {/* Focus Duration */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-gray-600 uppercase">
-                    Focus Duration
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">
-                    {formatDuration(item.focusDuration)}
-                  </p>
-                </div>
-
-                {/* Break Time */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-gray-600 uppercase">
-                    Break Time
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">
-                    {formatDuration(item.totalBreakTime)}
-                  </p>
-                </div>
-
-                {/* Status */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-gray-600 uppercase">
-                    Status
-                  </p>
-                  <div className="mt-1">
-                    {item.verifiedAI ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Verified
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        Pending
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Duration */}
-                {item.duration && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-semibold text-gray-600 uppercase">
-                      Total Duration
-                    </p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">
-                      {item.duration} min
-                    </p>
-                  </div>
-                )}
               </div>
+
+              {/* Photo Display */}
+              {item.photoUrl && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Photo
+                  </label>
+                  <div className="bg-gray-50 rounded-lg p-4 overflow-hidden">
+                    <img
+                      src={item.photoUrl}
+                      alt="Session photo"
+                      className="w-full h-auto max-h-96 object-cover rounded-lg"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Description - Editable */}
               <div>

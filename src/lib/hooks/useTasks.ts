@@ -16,6 +16,11 @@ export interface DifficultyObject {
   name: string;
 }
 
+export interface CategoryObject {
+  id: number;
+  name: string;
+}
+
 export interface DayObject {
   id: number;
   name: string;
@@ -41,8 +46,12 @@ export interface Task {
   updatedAt: string;
   difficultyId: number;
   statusId: number;
+  categoryId?: number | null;
   difficulty?: DifficultyObject;
   status?: StatusObject | string;
+  category?: CategoryObject | null;
+  startTime?: string;
+  endTime?: string;
   days?: TaskDay[];
 }
 

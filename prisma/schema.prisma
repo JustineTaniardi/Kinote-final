@@ -9,18 +9,20 @@ datasource db {
 }
 
 model User {
-  id                     Int             @id @default(autoincrement())
-  name                   String
-  email                  String          @unique
-  password               String
-  resetPasswordToken     String?         @unique
-  resetPasswordExpiresAt DateTime?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  aiResults              AiAnalysis[]
-  streaks                Streak[]
-  histories              StreakHistory[]
-  tasks                  Task[]
+  id                        Int             @id @default(autoincrement())
+  name                      String
+  email                     String          @unique
+  password                  String
+  emailVerifiedAt           DateTime?
+  emailVerificationToken    String?         @unique
+  resetPasswordToken        String?         @unique
+  resetPasswordExpiresAt    DateTime?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+  aiResults                 AiAnalysis[]
+  streaks                   Streak[]
+  histories                 StreakHistory[]
+  tasks                     Task[]
 }
 
 model Category {
@@ -29,6 +31,7 @@ model Category {
   createdAt     DateTime      @default(now())
   streaks       Streak[]
   subCategories SubCategory[]
+  tasks         Task[]
 }
 
 model SubCategory {
@@ -66,19 +69,24 @@ model Task {
   title        String
   description  String?
   deadline     DateTime
+  startTime    String     @default("08:00")
+  endTime      String     @default("09:00")
   priority     String     @default("medium")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   userId       Int
   difficultyId Int
   statusId     Int
+  categoryId   Int?
   difficulty   Difficulty @relation(fields: [difficultyId], references: [id])
   status       Status     @relation(fields: [statusId], references: [id])
   user         User       @relation(fields: [userId], references: [id])
+  category     Category?  @relation(fields: [categoryId], references: [id])
   days         TaskDay[]
 
   @@index([difficultyId], map: "Task_difficultyId_fkey")
   @@index([statusId], map: "Task_statusId_fkey")
+  @@index([categoryId], map: "Task_categoryId_fkey")
   @@index([userId], map: "Task_userId_fkey")
 }
 
@@ -97,13 +105,13 @@ model Streak {
   id            Int              @id @default(autoincrement())
   title         String
   dayId         Int?
-  dayIds        Json
+  dayIds        Json             @default("[]")
   totalTime     Int              @default(0)
   breakTime     Int              @default(0)
   breakCount    Int              @default(0)
   streakCount   Int              @default(0)
   description   String?
-  photoUrl      String?
+  photoUrl      String?          @db.LongText
   verified      Boolean          @default(false)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -135,7 +143,8 @@ model StreakHistory {
   duration       Int?
   focusDuration  Int              @default(0)
   totalBreakTime Int              @default(0)
-  photoUrl       String?
+  breakCount     Int              @default(0)
+  photoUrl       String?          @db.LongText
   verifiedAI     Boolean          @default(false)
   aiNote         String?
   breakSessions  Json

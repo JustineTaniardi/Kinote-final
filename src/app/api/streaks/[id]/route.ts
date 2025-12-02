@@ -210,8 +210,31 @@ export async function PATCH(
         updateData.dayId = dayIdsArray[0];
       }
     }
-    if (body.totalTime !== undefined) updateData.totalTime = body.totalTime;
-    if (body.breakTime !== undefined) updateData.breakTime = body.breakTime;
+    
+    // Validate totalTime if provided
+    if (body.totalTime !== undefined) {
+      const parsedTotalTime = parseInt(String(body.totalTime)) || 0;
+      if (parsedTotalTime < 1) {
+        return NextResponse.json(
+          { message: "Total time must be at least 1 minute" },
+          { status: 400 }
+        );
+      }
+      updateData.totalTime = parsedTotalTime;
+    }
+    
+    // Validate breakTime if provided
+    if (body.breakTime !== undefined) {
+      const parsedBreakTime = parseInt(String(body.breakTime)) || 0;
+      if (body.breakTime && parsedBreakTime < 1) {
+        return NextResponse.json(
+          { message: "Break time must be at least 1 minute" },
+          { status: 400 }
+        );
+      }
+      updateData.breakTime = parsedBreakTime;
+    }
+    
     if (body.breakCount !== undefined) updateData.breakCount = body.breakCount;
     if (body.description !== undefined) updateData.description = body.description;
 

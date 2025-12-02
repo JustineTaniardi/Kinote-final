@@ -8,7 +8,7 @@ import ActivityItem from "./ActivityItem";
 import StreakWeeklyColumn from "./StreakWeeklyColumn";
 import StreakTimerModal from "./StreakTimerModal";
 import StreakDetailSidebar from "./StreakDetailSidebar";
-import StreakCompletionModal from "./StreakCompletionModal";
+import SessionDetailsModal from "./SessionDetailsModal";
 import { StreakEntry } from "./StreakTypes";
 import { useStreaks } from "@/lib/hooks/useStreaks";
 import type { Streak } from "@/lib/hooks/useStreaks";
@@ -37,10 +37,12 @@ export default function StreakContent({}: StreakContentProps) {
   const [timerFor, setTimerFor] = useState<StreakEntry | null>(null);
   const [detailEntry, setDetailEntry] = useState<StreakEntry | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [completionOpen, setCompletionOpen] = useState(false);
+  const [sessionDetailsOpen, setSessionDetailsOpen] = useState(false);
   const [completionStreakId, setCompletionStreakId] = useState<number | null>(null);
+  const [completionHistoryId, setCompletionHistoryId] = useState<number | null>(null);
   const [completionStreakTitle, setCompletionStreakTitle] = useState("");
   const [allDays, setAllDays] = useState<Array<{ id: number; name: string }>>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Fetch all days for mapping
   useEffect(() => {
@@ -226,6 +228,10 @@ export default function StreakContent({}: StreakContentProps) {
           .then((res) => res.json())
           .then((data) => {
             console.log("Session saved:", data);
+            // Store the historyId for the SessionDetailsModal
+            if (data.historyId) {
+              setCompletionHistoryId(data.historyId);
+            }
           })
           .catch((err) => {
             console.error("Failed to save session:", err);
@@ -252,12 +258,15 @@ export default function StreakContent({}: StreakContentProps) {
     setEntries((prev) => [...prev, payload]);
     setTimerOpen(false);
     
-    // Show completion modal for image upload and AI verification
+    // Show session details modal for mandatory input (description and photo)
     if (timerFor.id && typeof timerFor.id === "number") {
       setCompletionStreakId(timerFor.id);
       setCompletionStreakTitle(timerFor.title);
-      setCompletionOpen(true);
+      setSessionDetailsOpen(true);
     }
+    
+    // Trigger ActivityItem to refetch streak count
+    setRefreshTrigger((prev) => prev + 1);
     
     setTimerFor(null);
   };
@@ -365,6 +374,7 @@ export default function StreakContent({}: StreakContentProps) {
                         entry={entry}
                         onOpen={openDetail}
                         onStart={handleStart}
+                        refreshTrigger={refreshTrigger}
                       />
                     </div>
                   ))}
@@ -405,6 +415,7 @@ export default function StreakContent({}: StreakContentProps) {
                       activities={activities}
                       onOpen={openDetail}
                       onStart={handleStart}
+                      refreshTrigger={refreshTrigger}
                     />
                   ))}
                 </div>
@@ -461,14 +472,15 @@ export default function StreakContent({}: StreakContentProps) {
         onEdit={handleEdit}
       />
 
-      {/* Streak Completion Modal */}
-      <StreakCompletionModal
-        isOpen={completionOpen}
-        onClose={() => setCompletionOpen(false)}
+      {/* Session Details Modal - for mandatory input after completing session */}
+      <SessionDetailsModal
+        isOpen={sessionDetailsOpen}
+        onClose={() => setSessionDetailsOpen(false)}
         streakId={completionStreakId || 0}
+        historyId={completionHistoryId || 0}
         streakTitle={completionStreakTitle}
-        onVerificationComplete={() => {
-          setCompletionOpen(false);
+        onSubmitSuccess={() => {
+          setSessionDetailsOpen(false);
           refetch();
         }}
       />

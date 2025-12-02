@@ -15,19 +15,28 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading, error } = useAuth();
+  const { user, login, isLoading, error } = useAuth();
   const redirectedRef = useRef(false);
 
   // ✅ Check if user is already logged in and redirect (only once)
   useEffect(() => {
     if (redirectedRef.current) return; // Only check once
+    if (isLoading) return; // Wait for auth to initialize
 
-    const token = localStorage.getItem("authToken");
-    if (token) {
+    // Use user object from useAuth instead of localStorage token
+    if (user) {
       redirectedRef.current = true;
       router.push("/streak");
     }
-  }, [router]);
+  }, [user, isLoading, router]);
+
+  // ✅ If auth hook shows error (e.g., invalid token/session), clear localStorage
+  useEffect(() => {
+    if (error && error.includes("Unauthorized") || error && error.includes("Invalid") || error && error.includes("expired")) {
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("user");
+    }
+  }, [error]);
 
   const [showPw, setShowPw] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,6 +44,23 @@ export default function LoginPage() {
     password: "",
   });
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  // Handle error from useAuth hook
+  useEffect(() => {
+    if (error) {
+      setLoginError(error);
+      setLocalLoading(false);
+    }
+  }, [error]);
+
+  // Handle loading state from useAuth hook
+  useEffect(() => {
+    if (!isLoading && localLoading) {
+      setLocalLoading(false);
+    }
+  }, [isLoading, localLoading]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -43,10 +69,13 @@ export default function LoginPage() {
       [name]: value,
     }));
     setValidationError(null);
+    setLoginError(null); // Clear login error when user starts typing
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setValidationError(null); // Clear any previous validation errors
+    setLoginError(null); // Clear any previous login errors
 
     // Validation
     if (!formData.email || !formData.password) {
@@ -65,7 +94,10 @@ export default function LoginPage() {
       return;
     }
 
+    // Set local loading state immediately for UI feedback
+    setLocalLoading(true);
     const result = await login(formData);
+    // Don't clear localLoading here - let useAuth hook error state handle it
     if (result) {
       // Redirect to streak page
       router.push("/streak");
@@ -110,7 +142,7 @@ export default function LoginPage() {
                   placeholder="nama@email.com"
                   value={formData.email}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  disabled={localLoading || isLoading}
                   className="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/50 disabled:opacity-50"
                 />
               </div>
@@ -129,7 +161,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  disabled={localLoading || isLoading}
                   className="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/50 disabled:opacity-50"
                 />
                 <button
@@ -137,7 +169,7 @@ export default function LoginPage() {
                   onClick={() => setShowPw((s) => !s)}
                   aria-label={showPw ? "Hide password" : "Show password"}
                   className="text-white/60 hover:text-white transition disabled:opacity-50"
-                  disabled={isLoading}
+                  disabled={localLoading || isLoading}
                 >
                   {showPw ? (
                     <EyeSlashIcon className="h-5 w-5" />
@@ -159,19 +191,21 @@ export default function LoginPage() {
             </div>
 
             {/* Error Message */}
-            {(validationError || error) && (
+            {(validationError || loginError) && (
               <div className="rounded-lg bg-red-500/20 border border-red-500/50 p-4 text-sm text-red-100">
-                {validationError || error}
+                {validationError || loginError}
               </div>
             )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-3 bg-white text-[#0f1a31] font-semibold rounded-lg hover:bg-white/90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={localLoading || isLoading}
+              className={`w-full py-3 bg-white text-[#0f1a31] font-semibold rounded-lg transition disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                localLoading || isLoading ? "animate-button-glow hover:bg-white/80" : "hover:bg-white/90 disabled:opacity-50"
+              }`}
             >
-              {isLoading ? (
+              {localLoading || isLoading ? (
                 <>
                   <LoadingSpinner />
                   <span>Signing in...</span>
@@ -355,7 +389,7 @@ export default function LoginPage() {
                     placeholder="Insert your Email"
                     value={formData.email}
                     onChange={handleChange}
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                     className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 disabled:opacity-50"
                   />
                 </div>
@@ -372,7 +406,7 @@ export default function LoginPage() {
                     placeholder="Insert your Password"
                     value={formData.password}
                     onChange={handleChange}
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                     className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 disabled:opacity-50"
                   />
                   <button
@@ -380,7 +414,7 @@ export default function LoginPage() {
                     onClick={() => setShowPw((s) => !s)}
                     aria-label={showPw ? "Hide password" : "Show password"}
                     className="text-slate-500 hover:text-slate-700 transition disabled:opacity-50"
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                   >
                     {showPw ? (
                       <EyeSlashIcon className="h-5 w-5" />
@@ -391,9 +425,9 @@ export default function LoginPage() {
                 </div>
 
                 {/* Error Message */}
-                {(validationError || error) && (
+                {(validationError || loginError) && (
                   <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-                    {validationError || error}
+                    {validationError || loginError}
                   </div>
                 )}
 
@@ -410,10 +444,14 @@ export default function LoginPage() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="mt-6 w-full rounded-md bg-[#0f1a31] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#101c36] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={localLoading || isLoading}
+                  className={`mt-6 w-full rounded-md px-4 py-2.5 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    localLoading || isLoading
+                      ? "bg-[#0f1a31] text-white animate-button-glow hover:bg-[#0f1a31]"
+                      : "bg-[#0f1a31] text-white hover:bg-[#101c36] disabled:opacity-50"
+                  }`}
                 >
-                  {isLoading ? (
+                  {localLoading || isLoading ? (
                     <>
                       <LoadingSpinner />
                       <span>Logging in...</span>

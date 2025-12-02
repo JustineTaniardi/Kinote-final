@@ -15,7 +15,9 @@ export default function ToDoPage() {
 
     // Check authentication status
     if (!user) {
-      // Not authenticated - redirect to login
+      // Not authenticated - clear any stale data and redirect to login
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("user");
       router.push("/login");
       return;
     }

@@ -30,31 +30,33 @@ export default function DayColumn({ date, events }: DayColumnProps) {
   });
 
   return (
-    <div className="flex-1 border-r border-gray-200 last:border-r-0 bg-white flex flex-col">
+    <>
       {/* Hour rows */}
-      <div className="flex-1 divide-y divide-gray-200 relative">
-        {hours.map((hour) => (
-          <div key={hour} className="h-16 relative flex-shrink-0">
-            {/* Render events for this hour */}
-            {eventsByHour[hour] &&
-              eventsByHour[hour].map((event) => {
-                const { top, height } = getEventDimensions(
-                  event.startTime,
-                  event.endTime,
-                  hour
-                );
-                return (
-                  <EventCard
-                    key={`${event.id}-${hour}`}
-                    event={event}
-                    top={top}
-                    height={height}
-                  />
-                );
-              })}
-          </div>
-        ))}
-      </div>
-    </div>
+      {hours.map((hour, idx) => (
+        <div
+          key={hour}
+          style={{ height: '64px', position: 'relative', padding: 0, margin: 0, boxSizing: 'border-box' }}
+          className={`border-b border-gray-200 ${idx === hours.length - 1 ? 'border-b-0' : ''}`}
+        >
+          {/* Render events for this hour */}
+          {eventsByHour[hour] &&
+            eventsByHour[hour].map((event) => {
+              const { top, height } = getEventDimensions(
+                event.startTime,
+                event.endTime,
+                hour
+              );
+              return (
+                <EventCard
+                  key={`${event.id}-${hour}`}
+                  event={event}
+                  top={top}
+                  height={height}
+                />
+              );
+            })}
+        </div>
+      ))}
+    </>
   );
 }

@@ -35,6 +35,7 @@ export default function AddActivity({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
   const { createStreak } = useStreakMutation();
 
@@ -65,7 +66,10 @@ export default function AddActivity({
           headers: { Authorization: `Bearer ${token}` },
         });
         if (catResponse.ok) {
-          setCategories(await catResponse.json());
+          const catData = await catResponse.json();
+          setCategories(Array.isArray(catData) ? catData : []);
+        } else {
+          console.error("Failed to fetch categories:", catResponse.status);
         }
 
         // Fetch subcategories
@@ -73,7 +77,10 @@ export default function AddActivity({
           headers: { Authorization: `Bearer ${token}` },
         });
         if (subCatResponse.ok) {
-          setSubCategories(await subCatResponse.json());
+          const subCatData = await subCatResponse.json();
+          setSubCategories(Array.isArray(subCatData) ? subCatData : []);
+        } else {
+          console.error("Failed to fetch subcategories:", subCatResponse.status);
         }
 
         // Fetch days
@@ -88,6 +95,8 @@ export default function AddActivity({
             return dayOrder.indexOf(a.name) - dayOrder.indexOf(b.name);
           });
           setDays(sortedDays);
+        } else {
+          console.error("Failed to fetch days:", dayResponse.status);
         }
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -131,6 +140,7 @@ export default function AddActivity({
     setDescription("");
     setError(null);
     setSuccessMessage(null);
+    setIdempotencyKey(null);
   };
 
   const handleSave = async () => {
@@ -150,9 +160,34 @@ export default function AddActivity({
       return;
     }
 
+    // Validate totalTime - minimum 1 minute
+    const parsedTotalTime = parseInt(totalTime) || 0;
+    if (parsedTotalTime < 1) {
+      setError("Total time must be at least 1 minute");
+      return;
+    }
+
+    // Validate breakTime - minimum 1 minute
+    const parsedBreakTime = parseInt(breakTime) || 0;
+    if (breakTime.trim() !== "" && parsedBreakTime < 1) {
+      setError("Break time must be at least 1 minute");
+      return;
+    }
+
+    // Prevent double submission if already loading
+    if (isLoading) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuccessMessage(null);
+
+    // Generate idempotency key on first submission
+    const requestIdempotencyKey = idempotencyKey || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    if (!idempotencyKey) {
+      setIdempotencyKey(requestIdempotencyKey);
+    }
 
     try {
       const payload = {
@@ -164,6 +199,7 @@ export default function AddActivity({
         breakTime: parseInt(breakTime) || 0,
         breakCount: parseInt(breakCount) || 0,
         description: description || undefined,
+        idempotencyKey: requestIdempotencyKey,
       };
 
       await createStreak(payload);

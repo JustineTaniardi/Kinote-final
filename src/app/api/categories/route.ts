@@ -89,11 +89,10 @@ export async function GET(req: Request) {
     }
 
     const categories = await prisma.category.findMany({
-      include: {
-        subCategories: true,
-        streaks: {
-          where: { userId },
-        },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
       },
       orderBy: { name: "asc" },
     });

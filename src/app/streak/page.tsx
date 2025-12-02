@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
 import StreakContent from "../components/StreakContent";
@@ -8,14 +8,21 @@ import { useAuth } from "@/lib/hooks/useAuth";
 export default function StreakPage() {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent infinite redirect
+    if (redirectedRef.current) return;
+    
     // Wait for auth loading to complete
     if (isLoading) return;
 
     // Check authentication status
     if (!user) {
-      // Not authenticated - redirect to login
+      // Not authenticated - clear any stale data and redirect to login
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("user");
+      redirectedRef.current = true;
       router.push("/login");
       return;
     }

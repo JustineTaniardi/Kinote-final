@@ -37,11 +37,38 @@ export default function StreakTimerView({ initialSeconds = 0, onClose, onFinish 
     onClose();
   };
 
+  const handleCancel = () => {
+    setRunning(false);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-lg shadow-2xl p-6 w-[420px]">
-        <div className="text-sm text-gray-500">Mode : <span className="font-semibold">Fokus</span></div>
-        <div className="text-2xl font-semibold mt-2">Belajar Koding</div>
+        <div className="flex justify-between items-center mb-4">
+          <div className="text-sm text-gray-500">Mode : <span className="font-semibold">Fokus</span></div>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded transition"
+              title="Minimize"
+            >
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            <button
+              onClick={handleCancel}
+              className="p-1 hover:bg-red-100 rounded transition"
+              title="Cancel Activity"
+            >
+              <svg className="w-5 h-5 text-gray-500 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="text-2xl font-semibold mb-6">Belajar Koding</div>
 
         <div className="mt-6 bg-gray-100 rounded-lg p-6 text-center">
           <div className="text-6xl font-mono font-extrabold">{formatTime(seconds)}</div>

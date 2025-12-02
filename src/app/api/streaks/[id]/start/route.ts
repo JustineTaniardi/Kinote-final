@@ -123,15 +123,9 @@ export async function POST(
       },
     });
 
-    // Update Streak table with the break count
-    if (breakCount > 0) {
-      await prisma.streak.update({
-        where: { id: streakId },
-        data: {
-          breakCount,
-        },
-      });
-    }
+    // NOTE: Do NOT update breakCount here - it should only be set during activity creation
+    // breakCount is a user preference for how many break sessions are allowed per activity
+    // It should not change when starting a session
 
     return NextResponse.json(
       {

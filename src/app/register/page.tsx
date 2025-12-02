@@ -16,16 +16,16 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, isLoading, error } = useAuth();
+  const { user, register, isLoading, error } = useAuth();
 
   // ✅ Check if user is already logged in and redirect
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    if (token) {
+    if (isLoading) return; // Wait for auth to initialize
+    if (user) {
       // User is already logged in, redirect to /todo
       router.push("/todo");
     }
-  }, [router]);
+  }, [user, isLoading, router]);
 
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
@@ -36,7 +36,31 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  
+  // Verification state
+  const [verificationStep, setVerificationStep] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationLoading, setVerificationLoading] = useState(false);
+
+  // Monitor error from useAuth hook and update local state
+  useEffect(() => {
+    if (error) {
+      setRegisterError(error);
+      setLocalLoading(false);
+    }
+  }, [error]);
+
+  // Handle loading state from useAuth hook
+  useEffect(() => {
+    if (!isLoading && localLoading) {
+      setLocalLoading(false);
+    }
+  }, [isLoading, localLoading]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -45,10 +69,13 @@ export default function RegisterPage() {
       [name]: value,
     }));
     setValidationError(null);
+    setRegisterError(null); // Clear register error when user starts typing
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setValidationError(null); // Clear any previous validation errors
+    setRegisterError(null); // Clear any previous register errors
 
     // Validation
     if (
@@ -77,24 +104,76 @@ export default function RegisterPage() {
       return;
     }
 
+    // Set local loading state immediately for UI feedback
+    setLocalLoading(true);
     const result = await register({
       name: formData.name,
       email: formData.email,
       password: formData.password,
     });
 
-    if (result) {
+    if (result && result.verificationToken) {
+      // Move to verification step
+      setVerificationEmail(formData.email);
+      setVerificationToken(result.verificationToken);
+      setVerificationStep(true);
       setSuccess(
-        "Registration successful! Redirecting to login..."
+        "Verification code sent to your email. Please check your inbox."
       );
-      // Redirect to login page
+      setValidationError(null);
+      setLocalLoading(false);
+    }
+  };
+
+  const handleVerifyEmail = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!verificationCode || verificationCode.length !== 6) {
+      setValidationError("Please enter a valid 6-digit code");
+      return;
+    }
+
+    try {
+      setVerificationLoading(true);
+      setValidationError(null);
+
+      const response = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: verificationEmail,
+          verificationCode,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setValidationError(data.error || "Verification failed");
+        return;
+      }
+
+      // Store token and redirect to login
+      if (data.token) {
+        localStorage.setItem("authToken", data.token);
+      }
+
+      setSuccess(
+        "Email verified successfully! You can now log in to your account."
+      );
+      setValidationError(null);
+
+      // Redirect to login after 1 second
       setTimeout(() => {
         router.push("/login");
       }, 1000);
-    } else {
-      // Error is already set in the error state from useAuth hook
-      // This ensures the error message is displayed
-      setValidationError(null);
+    } catch (error) {
+      console.error("Verification error:", error);
+      setValidationError("An error occurred during verification. Please try again.");
+    } finally {
+      setVerificationLoading(false);
     }
   };
 
@@ -121,7 +200,81 @@ export default function RegisterPage() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5">
+        <form onSubmit={verificationStep ? handleVerifyEmail : handleSubmit} className="w-full max-w-sm space-y-5">
+          {verificationStep ? (
+            <>
+              {/* Verification Step */}
+              <div>
+                <h2 className="text-xl font-bold text-white mb-2">Verify Your Email</h2>
+                <p className="text-sm text-white/70 mb-4">
+                  We've sent a verification code to {verificationEmail}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Verification Code
+                </label>
+                <input
+                  type="text"
+                  placeholder="000000"
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                  disabled={verificationLoading}
+                  className="w-full px-4 py-3 rounded-lg border border-white/20 bg-white/10 text-white text-center text-2xl tracking-widest placeholder:text-white/50 focus:border-white/50 focus:ring-2 focus:ring-white/30 disabled:opacity-50 transition"
+                />
+              </div>
+
+              {/* Error Message */}
+              {validationError && (
+                <div className="rounded-lg bg-red-500/20 border border-red-500/50 p-4 text-sm text-red-100">
+                  {validationError}
+                </div>
+              )}
+
+              {/* Success Message */}
+              {success && (
+                <div className="rounded-lg bg-green-500/20 border border-green-500/50 p-4 text-sm text-green-100">
+                  {success}
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={verificationLoading}
+                className={`w-full py-3 text-[#0f1a31] font-semibold rounded-lg transition disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                  verificationLoading ? "bg-white animate-button-glow hover:bg-white/80" : "bg-white hover:bg-white/90 disabled:opacity-50"
+                }`}
+              >
+                {verificationLoading ? (
+                  <>
+                    <LoadingSpinner />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  "Verify Email"
+                )}
+              </button>
+
+              {/* Back to Register */}
+              <button
+                type="button"
+                onClick={() => {
+                  setVerificationStep(false);
+                  setVerificationCode("");
+                  setValidationError(null);
+                  setSuccess(null);
+                }}
+                className="w-full py-2 text-white/70 hover:text-white transition text-sm"
+              >
+                Back to Registration
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Registration Step */}
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
@@ -135,7 +288,7 @@ export default function RegisterPage() {
                 placeholder="Your Name"
                 value={formData.name}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
                 className="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/50 disabled:opacity-50"
               />
             </div>
@@ -154,7 +307,7 @@ export default function RegisterPage() {
                 placeholder="email@example.com"
                 value={formData.email}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
                 className="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/50 disabled:opacity-50"
               />
             </div>
@@ -173,14 +326,14 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
                 className="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/50 disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={() => setShowPw((s) => !s)}
                 className="text-white/60 hover:text-white transition disabled:opacity-50"
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
               >
                 {showPw ? (
                   <EyeSlashIcon className="h-5 w-5" />
@@ -204,14 +357,14 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
                 className="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/50 disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPw((s) => !s)}
                 className="text-white/60 hover:text-white transition disabled:opacity-50"
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
               >
                 {showConfirmPw ? (
                   <EyeSlashIcon className="h-5 w-5" />
@@ -223,9 +376,9 @@ export default function RegisterPage() {
           </div>
 
           {/* Error Message */}
-          {(validationError || error) && (
+          {(validationError || registerError) && (
             <div className="rounded-lg bg-red-500/20 border border-red-500/50 p-4 text-sm text-red-100">
-              {validationError || error}
+              {validationError || registerError}
             </div>
           )}
 
@@ -239,10 +392,12 @@ export default function RegisterPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full py-3 bg-white text-[#0f1a31] font-semibold rounded-lg hover:bg-white/90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled={localLoading || isLoading}
+            className={`w-full py-3 text-[#0f1a31] font-semibold rounded-lg transition disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+              localLoading || isLoading ? "bg-white animate-button-glow hover:bg-white/80" : "bg-white hover:bg-white/90 disabled:opacity-50"
+            }`}
           >
-            {isLoading ? (
+            {localLoading || isLoading ? (
               <>
                 <LoadingSpinner />
                 <span>Creating Account...</span>
@@ -262,6 +417,8 @@ export default function RegisterPage() {
               Sign In
             </Link>
           </p>
+            </>
+          )}
         </form>
 
         {/* Back Button - Top Left */}
@@ -366,12 +523,84 @@ export default function RegisterPage() {
             {/* Form */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <form
-                onSubmit={handleSubmit}
+                onSubmit={verificationStep ? handleVerifyEmail : handleSubmit}
                 className="pointer-events-auto w-[88%] md:w-[460px] rounded-xl bg-white p-6 md:p-7 shadow-[0_20px_80px_rgba(2,6,23,0.12)] space-y-4"
               >
-                <h1 className="text-center text-[24px] font-extrabold text-[#0f1a31]">
-                  Register
-                </h1>
+                {verificationStep ? (
+                  <>
+                    <h1 className="text-center text-[24px] font-extrabold text-[#0f1a31]">
+                      Verify Email
+                    </h1>
+
+                    <p className="text-center text-sm text-slate-600">
+                      We've sent a verification code to <br />
+                      <strong>{verificationEmail}</strong>
+                    </p>
+
+                    <label className="block text-sm font-medium text-slate-700">
+                      Verification Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="000000"
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                      disabled={verificationLoading}
+                      className="w-full px-4 py-3 rounded-md border border-slate-300 text-center text-2xl tracking-widest placeholder:text-slate-400 focus-within:border-slate-500 focus-within:ring-2 focus-within:ring-slate-200 transition disabled:opacity-50"
+                    />
+
+                    {/* Error Message */}
+                    {validationError && (
+                      <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+                        {validationError}
+                      </div>
+                    )}
+
+                    {/* Success Message */}
+                    {success && (
+                      <div className="rounded-md bg-green-50 p-3 text-sm text-green-700">
+                        {success}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={verificationLoading}
+                      className={`w-full rounded-md px-4 py-2.5 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                        verificationLoading
+                          ? "bg-[#0f1a31] text-white animate-button-glow hover:bg-[#0f1a31]"
+                          : "bg-[#0f1a31] text-white hover:bg-[#101c36] disabled:opacity-50"
+                      }`}
+                    >
+                      {verificationLoading ? (
+                        <>
+                          <LoadingSpinner />
+                          <span>Verifying...</span>
+                        </>
+                      ) : (
+                        "Verify Email"
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVerificationStep(false);
+                        setVerificationCode("");
+                        setValidationError(null);
+                        setSuccess(null);
+                      }}
+                      className="w-full text-center text-sm text-slate-600 hover:text-slate-800 transition"
+                    >
+                      Back to Registration
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-center text-[24px] font-extrabold text-[#0f1a31]">
+                      Register
+                    </h1>
 
                 {/* Name */}
                 <label className="block text-sm font-medium text-slate-700">
@@ -385,7 +614,7 @@ export default function RegisterPage() {
                     placeholder="Insert your Full Name"
                     value={formData.name}
                     onChange={handleChange}
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                     className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 disabled:opacity-50"
                   />
                 </div>
@@ -402,7 +631,7 @@ export default function RegisterPage() {
                     placeholder="Insert your Email"
                     value={formData.email}
                     onChange={handleChange}
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                     className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 disabled:opacity-50"
                   />
                 </div>
@@ -419,14 +648,14 @@ export default function RegisterPage() {
                     placeholder="Insert your Password"
                     value={formData.password}
                     onChange={handleChange}
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                     className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw((s) => !s)}
                     className="text-slate-500 hover:text-slate-700 transition disabled:opacity-50"
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                   >
                     {showPw ? (
                       <EyeSlashIcon className="h-5 w-5" />
@@ -448,14 +677,14 @@ export default function RegisterPage() {
                     placeholder="Confirm your Password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                     className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPw((s) => !s)}
                     className="text-slate-500 hover:text-slate-700 transition disabled:opacity-50"
-                    disabled={isLoading}
+                    disabled={localLoading || isLoading}
                   >
                     {showConfirmPw ? (
                       <EyeSlashIcon className="h-5 w-5" />
@@ -466,9 +695,9 @@ export default function RegisterPage() {
                 </div>
 
                 {/* Error Message */}
-                {(validationError || error) && (
+                {(validationError || registerError) && (
                   <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-                    {validationError || error}
+                    {validationError || registerError}
                   </div>
                 )}
 
@@ -493,10 +722,14 @@ export default function RegisterPage() {
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full rounded-md bg-[#0f1a31] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#101c36] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={localLoading || isLoading}
+                  className={`w-full rounded-md px-4 py-2.5 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    localLoading || isLoading
+                      ? "bg-[#0f1a31] text-white animate-button-glow hover:bg-[#0f1a31]"
+                      : "bg-[#0f1a31] text-white hover:bg-[#101c36] disabled:opacity-50"
+                  }`}
                 >
-                  {isLoading ? (
+                  {localLoading || isLoading ? (
                     <>
                       <LoadingSpinner />
                       <span>Creating Account...</span>
@@ -505,6 +738,8 @@ export default function RegisterPage() {
                     "Register"
                   )}
                 </button>
+                  </>
+                )}
               </form>
             </div>
           </div>

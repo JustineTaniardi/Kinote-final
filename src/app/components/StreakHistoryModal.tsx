@@ -179,16 +179,7 @@ export default function StreakHistoryModal({
                         Time
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-900">
-                        Title
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-900">
-                        Focus Duration
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-900">
-                        Break Time
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-900">
-                        Status
+                        Description
                       </th>
                     </tr>
                   </thead>
@@ -211,24 +202,7 @@ export default function StreakHistoryModal({
                           {formatTime(item.startTime)}
                         </td>
                         <td className="py-3 px-4 text-gray-900 max-w-xs truncate">
-                          {item.title}
-                        </td>
-                        <td className="py-3 px-4 text-gray-900">
-                          {formatDuration(item.focusDuration)}
-                        </td>
-                        <td className="py-3 px-4 text-gray-900">
-                          {formatDuration(item.totalBreakTime)}
-                        </td>
-                        <td className="py-3 px-4">
-                          {item.verifiedAI ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              ✓ Verified
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              Pending
-                            </span>
-                          )}
+                          {item.description ? item.description.substring(0, 16) : "-"}
                         </td>
                       </tr>
                     ))}

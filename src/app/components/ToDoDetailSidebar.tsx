@@ -20,7 +20,8 @@ interface ToDoItem {
   category?: string;
   priority?: string;
   deadline?: string;
-  time?: string;
+  startTime?: string;
+  endTime?: string;
   description?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -49,12 +50,56 @@ export default function ToDoDetailSidebar({
   const [editCategory, setEditCategory] = useState(item?.category || "");
   const [editPriority, setEditPriority] = useState(item?.priority || "");
   const [editDate, setEditDate] = useState(item?.deadline || "");
-  const [editTime, setEditTime] = useState(item?.time || "");
+  const [editStartTime, setEditStartTime] = useState(item?.startTime || "08:00");
+  const [editEndTime, setEditEndTime] = useState(item?.endTime || "09:00");
+  const [editDuration, setEditDuration] = useState("1j 0m");
+  const [editTimeError, setEditTimeError] = useState<string | null>(null);
   const [editDescription, setEditDescription] = useState(
     item?.description || ""
   );
 
-  const { deleteTask } = useTaskMutation();
+  const { deleteTask, updateTask } = useTaskMutation();
+
+  // Calculate duration whenever times change
+  useEffect(() => {
+    const [startHour, startMin] = editStartTime.split(":").map(Number);
+    const [endHour, endMin] = editEndTime.split(":").map(Number);
+
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+
+    let diffMinutes = endMinutes - startMinutes;
+    
+    // Validasi 1: Jika endTime < startTime, berarti ada pergantian hari (tidak diizinkan)
+    if (diffMinutes < 0) {
+      setEditTimeError("⚠️ Waktu tidak boleh melewati tengah malam. Pilih waktu dalam hari yang sama (mis: 08:00 - 23:59)");
+      setEditDuration("0j 0m");
+      return;
+    }
+    
+    // Validasi 2: Jika waktu sama (0 menit), harus minimal 1 menit
+    if (diffMinutes === 0) {
+      setEditTimeError("⚠️ Waktu mulai dan selesai tidak boleh sama. Harus ada durasi minimal 1 menit");
+      setEditDuration("0j 0m");
+      return;
+    }
+
+    // Clear error jika valid
+    setEditTimeError(null);
+
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+
+    if (hours === 0 && minutes === 0) {
+      setEditDuration("0j 0m");
+    } else if (minutes === 0) {
+      setEditDuration(`${hours}j`);
+    } else if (hours === 0) {
+      setEditDuration(`${minutes}m`);
+    } else {
+      setEditDuration(`${hours}j ${minutes}m`);
+    }
+  }, [editStartTime, editEndTime]);
 
   useEffect(() => {
     if (isOpen) {
@@ -65,8 +110,30 @@ export default function ToDoDetailSidebar({
         setEditTitle(item.title);
         setEditCategory(item.category || "");
         setEditPriority(item.priority || "");
-        setEditDate(item.deadline || "");
-        setEditTime(item.time || "");
+        
+        // Parse deadline - it could be ISO string or formatted date string
+        let dateValue = "";
+        if (item.deadline) {
+          try {
+            // Check if deadline is already in YYYY-MM-DD format
+            if (item.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              dateValue = item.deadline;
+            } else {
+              // Parse ISO string and extract date part without timezone conversion
+              const deadlineDate = new Date(item.deadline);
+              const year = deadlineDate.getFullYear();
+              const month = String(deadlineDate.getMonth() + 1).padStart(2, '0');
+              const day = String(deadlineDate.getDate()).padStart(2, '0');
+              dateValue = `${year}-${month}-${day}`;
+            }
+          } catch (e) {
+            dateValue = item.deadline;
+          }
+        }
+        setEditDate(dateValue);
+        
+        setEditStartTime(item.startTime || "08:00");
+        setEditEndTime(item.endTime || "09:00");
         setEditDescription(item.description || "");
       }
     } else {
@@ -105,19 +172,79 @@ export default function ToDoDetailSidebar({
     }
   };
 
-  const handleSave = () => {
-    const updated: ToDoItem = {
-      ...item,
-      title: editTitle,
-      category: editCategory,
-      priority: editPriority,
-      deadline: editDate,
-      time: editTime,
-      description: editDescription,
-      updatedAt: new Date().toISOString(),
-    };
-    onEdit?.(updated);
-    setIsEditing(false);
+  const handleSave = async () => {
+    // Validasi date - tanggal tidak boleh lebih kecil dari hari ini
+    const selectedDate = new Date(editDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      showError("⚠️ Tanggal tidak boleh lebih kecil dari hari ini");
+      return;
+    }
+    
+    // Validasi time range - waktu harus dalam hari yang sama
+    if (editTimeError) {
+      showError(editTimeError);
+      return;
+    }
+    
+    try {
+      // Map priority to difficulty ID based on actual data
+      const priorityMap: Record<string, string> = {
+        "Low": "Easy",
+        "Medium": "Medium",
+        "High": "Hard",
+      };
+      
+      // Get difficulty and status info
+      const difficultyResponse = await fetch("/api/difficulty", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
+      });
+      const difficulties = await difficultyResponse.json();
+      
+      const difficultyName = priorityMap[editPriority] || editPriority;
+      const difficulty = difficulties.find((d: any) => d.name === difficultyName);
+      const difficultyId = difficulty?.id || 2;
+      
+      // Combine date and startTime for deadline ISO format
+      const deadline = new Date(`${editDate}T${editStartTime}`);
+      
+      // Normalize priority to lowercase for API
+      const normalizedPriority = editPriority.toLowerCase() as "low" | "medium" | "high";
+      
+      // Update the task in the database
+      await updateTask(item.id, {
+        title: editTitle,
+        description: editDescription,
+        deadline: deadline.toISOString(),
+        priority: normalizedPriority,
+        difficultyId,
+        startTime: editStartTime,
+        endTime: editEndTime,
+      });
+      
+      const updated: ToDoItem = {
+        ...item,
+        title: editTitle,
+        category: editCategory,
+        priority: editPriority,
+        deadline: editDate,
+        startTime: editStartTime,
+        endTime: editEndTime,
+        description: editDescription,
+        updatedAt: new Date().toISOString(),
+      };
+      
+      onEdit?.(updated);
+      setIsEditing(false);
+      showSuccess("Task updated successfully!");
+    } catch (error) {
+      console.error("Save error:", error);
+      showError("Failed to save task");
+    }
   };
 
   const handleCancel = () => {
@@ -125,7 +252,8 @@ export default function ToDoDetailSidebar({
     setEditCategory(item.category || "");
     setEditPriority(item.priority || "");
     setEditDate(item.deadline || "");
-    setEditTime(item.time || "");
+    setEditStartTime(item.startTime || "08:00");
+    setEditEndTime(item.endTime || "09:00");
     setEditDescription(item.description || "");
     setIsEditing(false);
   };
@@ -262,29 +390,52 @@ export default function ToDoDetailSidebar({
           </div>
         </div>
 
-        {/* Time */}
-        <div className="bg-gray-50 rounded-2xl p-4 flex items-center gap-3">
-          <ClockIcon className="w-5 h-5 text-gray-600 shrink-0" />
-          <div className="flex-1 min-w-0">
-            {isEditing ? (
-              <>
-                <p className="text-xs text-gray-500">Time</p>
-                <input
-                  type="time"
-                  value={editTime}
-                  onChange={(e) => setEditTime(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm text-gray-900 font-semibold mt-1"
-                />
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500">Time</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {item.time || "-"}
-                </p>
-              </>
-            )}
-          </div>
+        {/* Time Range */}
+        <div className="bg-gray-50 rounded-2xl p-4">
+          <p className="text-xs text-gray-500 mb-3 flex items-center gap-2">
+            <ClockIcon className="w-4 h-4 text-gray-600" />
+            Time Range
+          </p>
+          {isEditing ? (
+            <>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">From</label>
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">To</label>
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                {editTimeError && (
+                  <div className="text-xs text-red-600 font-medium pt-1">
+                    {editTimeError}
+                  </div>
+                )}
+                {!editTimeError && (
+                  <div className="text-xs text-gray-500 text-right font-medium pt-1">
+                    Duration: {editDuration}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-gray-900">
+                {item.startTime && item.endTime ? `${item.startTime} → ${item.endTime}` : "-"}
+              </p>
+            </>
+          )}
         </div>
 
         {/* Status Section */}

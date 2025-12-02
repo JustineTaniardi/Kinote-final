@@ -46,6 +46,10 @@ function VerifyEmailContent() {
   useEffect(() => {
     if (verifySuccess) {
       const timer = setTimeout(() => {
+        // Clear any existing token to force user to login
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("user");
+        document.cookie = "authToken=; path=/; max-age=0";
         router.push("/login");
       }, 3000);
       return () => clearTimeout(timer);

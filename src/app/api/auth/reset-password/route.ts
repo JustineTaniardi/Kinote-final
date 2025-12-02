@@ -72,10 +72,7 @@ export async function POST(req: Request) {
     }
 
     // Check if token is expired
-    if (
-      !user.resetPasswordExpiresAt ||
-      user.resetPasswordExpiresAt < new Date()
-    ) {
+    if (user.resetPasswordExpiresAt && user.resetPasswordExpiresAt < new Date()) {
       return NextResponse.json(
         {
           message: "Password reset link has expired. Please request a new one.",
@@ -99,8 +96,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        message:
-          "Password reset successfully. Please login with your new password.",
+        message: "Password reset successfully. Please login with your new password.",
         id: updatedUser.id,
         email: updatedUser.email,
       },

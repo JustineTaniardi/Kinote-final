@@ -32,6 +32,22 @@ export async function GET() {
     return NextResponse.json(days);
   } catch (error) {
     console.error("Get days error:", error);
+    
+    // In development mode, return mock data
+    if (process.env.NODE_ENV === "development") {
+      console.warn("⚠️  Database unavailable, returning mock days data");
+      const mockDays = [
+        { id: 1, name: "Monday" },
+        { id: 2, name: "Tuesday" },
+        { id: 3, name: "Wednesday" },
+        { id: 4, name: "Thursday" },
+        { id: 5, name: "Friday" },
+        { id: 6, name: "Saturday" },
+        { id: 7, name: "Sunday" },
+      ];
+      return NextResponse.json(mockDays);
+    }
+    
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

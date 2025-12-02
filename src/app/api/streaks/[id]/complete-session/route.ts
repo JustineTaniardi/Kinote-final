@@ -162,23 +162,25 @@ export async function POST(
       },
     });
 
-    // Count completed sessions from StreakHistory for this user and streak
-    const completedCount = await prisma.streakHistory.count({
+    // Count verified sessions from StreakHistory for streak count
+    const verifiedCount = await prisma.streakHistory.count({
       where: {
         streakId,
         userId,
+        verifiedAI: true,
       },
     });
 
     // Update streak metadata
     // NOTE: totalTime should NEVER be updated - it's the user's fixed duration input
-    // Only update breakTime and streakCount for analytics
+    // NOTE: breakTime should NEVER be updated - it's the user's break duration preference from setup
+    // Only update streakCount for analytics (count of verified histories)
     await prisma.streak.update({
       where: { id: streakId },
       data: {
-        // ❌ DO NOT UPDATE totalTime - it must stay as the user's original input (e.g., 120 minutes)
-        breakTime: streak.breakTime + totalBreakTime,
-        streakCount: completedCount, // Set to count of history entries
+        // ❌ DO NOT UPDATE totalTime - it must stay as the user's original input
+        // ❌ DO NOT UPDATE breakTime - it's user's preference for break duration, not accumulative
+        streakCount: verifiedCount, // Only count verified histories
         updatedAt: new Date(),
       },
     });
@@ -188,7 +190,7 @@ export async function POST(
       focusDuration: focusSeconds,
       totalBreakTime,
       breakRepetitionsUsed,
-      streakCount: completedCount,
+      streakCount: verifiedCount,
       sessionData: history,
     });
   } catch (error) {

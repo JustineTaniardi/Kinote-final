@@ -7,13 +7,10 @@ import { useAuth } from "@/lib/hooks/useAuth";
 export default function CoachAiContent() {
   const { user } = useAuth();
   const [streaks, setStreaks] = useState<StreakEntry[]>([]);
-  const [purposes, setPurposes] = useState<string[]>([]);
-  const [selectedActivities, setSelectedActivities] = useState<number[]>([]);
-  const [selectedGoal, setSelectedGoal] = useState<string>("");
+  const [selectedActivity, setSelectedActivity] = useState<number | null>(null);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [streaksLoading, setStreaksLoading] = useState(true);
-  const [purposesLoading, setPurposesLoading] = useState(true);
 
   // Fetch streaks
   useEffect(() => {
@@ -31,9 +28,19 @@ export default function CoachAiContent() {
         });
 
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json() as Array<{
+            id: number;
+            title: string;
+            category?: { name: string } | string;
+            totalTime?: number;
+            breakTime?: number;
+            description?: string;
+            updatedAt: string;
+            verified: boolean;
+            historyCount?: number;
+          }>;
 
-          const formattedStreaks = (data || []).map((streak: any) => ({
+          const formattedStreaks = (data || []).map((streak) => ({
             id: streak.id,
             title: streak.title,
             category:
@@ -47,6 +54,7 @@ export default function CoachAiContent() {
             lastUpdated: streak.updatedAt,
             status: streak.verified ? "Verified" : "Pending",
             days: [],
+            historyCount: streak.historyCount || 0,
           }));
 
           setStreaks(formattedStreaks);
@@ -61,72 +69,28 @@ export default function CoachAiContent() {
     fetchStreaks();
   }, [user]);
 
-  // Fetch purposes
-  useEffect(() => {
-    const fetchPurposes = async () => {
-      if (!user) return;
-      try {
-        setPurposesLoading(true);
-        const token = localStorage.getItem("authToken");
-
-        const response = await fetch("/api/ai/career/purposes", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          let purposesArray: string[] = [];
-
-          if (Array.isArray(data)) {
-            purposesArray = data
-              .map((item: any) => {
-                if (typeof item === "string") return item.trim();
-
-                if (typeof item === "object" && item !== null) {
-                  const name =
-                    item.name ||
-                    item.title ||
-                    item.purpose ||
-                    item.description;
-
-                  return name ? String(name).trim() : null;
-                }
-                return null;
-              })
-              .filter((p): p is string => !!p && p.length > 0);
-          }
-
-          setPurposes(purposesArray);
-        }
-      } catch (error) {
-        console.error("Error fetching purposes:", error);
-        setPurposes([]);
-      } finally {
-        setPurposesLoading(false);
-      }
-    };
-
-    fetchPurposes();
-  }, [user]);
-
-  // Toggle streak selection
+  // Toggle streak selection (single selection only)
   const toggleActivitySelection = (id: number) => {
-    setSelectedActivities((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedActivity(selectedActivity === id ? null : id);
   };
 
   // Start AI Analysis
   const handleStartAI = async () => {
-    if (selectedActivities.length === 0 || !selectedGoal) return;
+    if (selectedActivity === null) return;
 
     setIsLoading(true);
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        setAiResponse("ERROR: Request timeout. OpenAI API sedang lambat, silahkan coba lagi dalam beberapa saat.");
+        setIsLoading(false);
+      }
+    }, 120000); // 2 minutes timeout
+
     try {
       const token = localStorage.getItem("authToken");
+      const controller = new AbortController();
+      const timeoutController = setTimeout(() => controller.abort(), 120000);
+
       const response = await fetch("/api/ai/career/analyze", {
         method: "POST",
         headers: {
@@ -134,10 +98,12 @@ export default function CoachAiContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          streakIds: selectedActivities,
-          purpose: selectedGoal,
+          streakIds: [selectedActivity],
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutController);
 
       if (response.ok) {
         const data = await response.json();
@@ -153,22 +119,29 @@ export default function CoachAiContent() {
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || errorData.details || "Failed to generate AI analysis. Please try again.";
         setAiResponse(
-          errorData.message || "Failed to generate AI analysis. Please try again."
+          `ERROR: ${errorMessage}`
         );
       }
     } catch (error) {
       console.error("Error calling AI:", error);
-      setAiResponse("Error occurred while generating analysis. Please try again.");
+      const errorMsg = error instanceof Error ? error.message : 'Network error occurred while generating analysis. Please try again.';
+      if (errorMsg.includes('AbortError')) {
+        setAiResponse("ERROR: Request timeout. OpenAI API sedang lambat, silahkan coba lagi dalam beberapa saat.");
+      } else {
+        setAiResponse(`ERROR: ${errorMsg}`);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
 
-  const canStartAI = selectedActivities.length > 0 && selectedGoal;
+  const canStartAI = selectedActivity !== null;
 
   // Loading Screen
-  if (streaksLoading || purposesLoading) {
+  if (streaksLoading) {
     return (
       <div className="flex items-center justify-center w-full h-screen">
         <div className="text-center">
@@ -185,7 +158,7 @@ export default function CoachAiContent() {
       <div className="shrink-0 bg-white border-b border-gray-200 p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Coach AI</h1>
         <p className="text-sm text-gray-600">
-          Select your streaks and goals to get personalized insights
+          Select your streak to get personalized insights
         </p>
       </div>
 
@@ -194,18 +167,20 @@ export default function CoachAiContent() {
         {/* Streaks */}
         <div className="mb-12">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Select Streaks
+            Select a Streak
             <span className="ml-2 text-sm font-normal text-gray-500">
-              ({selectedActivities.length} selected)
+              ({selectedActivity ? "1 selected" : "0 selected"})
             </span>
           </h2>
 
           {streaks.length === 0 ? (
-            <p className="text-gray-500">No streaks found. Create one first!</p>
+            <p className="text-gray-500">
+              No streaks found with at least 10 history records. Create and complete more streak sessions first!
+            </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {streaks.map((streak) => {
-                const isSelected = selectedActivities.includes(streak.id);
+                const isSelected = selectedActivity === streak.id;
 
                 return (
                   <button
@@ -260,73 +235,22 @@ export default function CoachAiContent() {
                       </p>
 
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-700">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                          isSelected ? "bg-white text-[#161D36]" : "bg-gray-100 text-gray-700"
+                        }`}>
                           {String(streak.category)}
                         </span>
-                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-700">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                          isSelected ? "bg-white text-[#161D36]" : "bg-gray-100 text-gray-700"
+                        }`}>
                           {streak.totalMinutes} min
                         </span>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                          isSelected ? "bg-white text-[#161D36]" : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {typeof streak === 'object' && streak !== null && 'historyCount' in streak ? String((streak as Record<string, unknown>).historyCount) : '0'} sessions
+                        </span>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Purposes */}
-        <div className="mb-12">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Select Purpose
-          </h2>
-
-          {purposes.length === 0 ? (
-            <p className="text-gray-500">No purposes available.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {purposes.map((purpose, index) => {
-                const p = String(purpose).trim();
-                const isSelected = selectedGoal.trim() === p;
-
-                return (
-                  <button
-                    key={`purpose-${index}-${p}`}
-                    onClick={() => setSelectedGoal(p)}
-                    className={`relative p-6 rounded-xl border-2 transition-all text-center ${
-                      isSelected
-                        ? "border-[#161D36] bg-[#161D36]"
-                        : "border-gray-200 bg-white hover:border-gray-300"
-                    }`}
-                  >
-                    <h3
-                      className={`font-semibold text-lg ${
-                        isSelected ? "text-white" : "text-gray-900"
-                      }`}
-                    >
-                      {p}
-                    </h3>
-
-                    <div
-                      className={`mt-4 w-5 h-5 rounded border-2 flex items-center justify-center mx-auto transition-all ${
-                        isSelected
-                          ? "bg-white border-white"
-                          : "border-gray-300 bg-white"
-                      }`}
-                    >
-                      {isSelected && (
-                        <svg
-                          className="w-3 h-3 text-[#161D36]"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      )}
                     </div>
                   </button>
                 );
@@ -338,23 +262,41 @@ export default function CoachAiContent() {
         {/* AI Result */}
         {aiResponse && (
           <div className="mt-12">
-            <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-xl p-8 border border-blue-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                🤖 Analisis Coaching Karir AI
-              </h2>
+            {aiResponse.startsWith("ERROR:") ? (
+              <div className="bg-red-50 rounded-xl p-8 border border-red-200">
+                <h2 className="text-2xl font-bold text-red-900 mb-4">
+                  ⚠️ Analisis Gagal
+                </h2>
+                <p className="text-red-700 mb-4">
+                  {aiResponse.replace("ERROR: ", "")}
+                </p>
+                <p className="text-sm text-red-600">
+                  Silakan periksa:
+                </p>
+                <ul className="text-sm text-red-600 list-disc list-inside">
+                  <li>API Key OpenAI sudah valid di environment variables</li>
+                  <li>Koneksi internet stabil</li>
+                  <li>Coba lagi dalam beberapa saat</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-xl p-8 border border-blue-200">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  🤖 Analisis Pembelajaran AI Coach
+                </h2>
 
               {(() => {
                 try {
                   const parsed = JSON.parse(String(aiResponse));
                   return (
                     <div className="space-y-6">
-                      {/* Personality Tendencies */}
-                      {parsed.personality_tendencies && (
+                      {/* Learning Conclusion */}
+                      {parsed.learning_conclusion && (
                         <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
                           <h3 className="font-semibold text-gray-900 mb-2">
-                            👤 Kecenderungan Kepribadian Anda
+                            📖 Kesimpulan Pembelajaran Anda
                           </h3>
-                          <p className="text-gray-700">{parsed.personality_tendencies}</p>
+                          <p className="text-gray-700">{parsed.learning_conclusion}</p>
                         </div>
                       )}
 
@@ -374,143 +316,74 @@ export default function CoachAiContent() {
                         </div>
                       )}
 
-                      {/* Weaknesses */}
-                      {parsed.weaknesses && Array.isArray(parsed.weaknesses) && (
+                      {/* Areas to Improve */}
+                      {parsed.areas_to_improve && Array.isArray(parsed.areas_to_improve) && (
                         <div className="bg-white rounded-lg p-4 border-l-4 border-yellow-500">
                           <h3 className="font-semibold text-gray-900 mb-2">
                             🎯 Area untuk Ditingkatkan
                           </h3>
                           <ul className="list-disc list-inside space-y-1">
-                            {parsed.weaknesses.map((weakness: string, idx: number) => (
+                            {parsed.areas_to_improve.map((area: string, idx: number) => (
                               <li key={idx} className="text-gray-700">
-                                {weakness}
+                                {area}
                               </li>
                             ))}
                           </ul>
                         </div>
                       )}
 
-                      {/* Recommended Options (Dynamic based on purpose) */}
-                      {(() => {
-                        // Try different field names based on purpose
-                        const recommendationFields = [
-                          `recommended_${selectedGoal?.toLowerCase()}`,
-                          `recommended_${selectedGoal?.toLowerCase().replace(" ", "_")}`,
-                          "recommended_careers",
-                          "recommended_competitions",
-                          "recommended_courses",
-                          "recommended_opportunities"
-                        ];
-                        
-                        // Find which field exists in parsed data
-                        const foundField = recommendationFields.find(
-                          field => parsed[field as keyof typeof parsed] && 
-                          Array.isArray(parsed[field as keyof typeof parsed])
-                        );
-                        
-                        const recommendations = foundField 
-                          ? parsed[foundField as keyof typeof parsed] as any[]
-                          : null;
-                        
-                        if (!recommendations) return null;
-
-                        const purposeEmojis: { [key: string]: string } = {
-                          "Lomba": "🏆",
-                          "Pekerjaan": "💼",
-                          "Kursus": "🎓"
-                        };
-
-                        const purposeTitles: { [key: string]: string } = {
-                          "Lomba": "Kompetisi Indonesia",
-                          "Pekerjaan": "Peluang Pekerjaan Indonesia",
-                          "Kursus": "Kursus & Program Indonesia"
-                        };
-
-                        const emoji = purposeEmojis[selectedGoal] || "🎯";
-                        const title = purposeTitles[selectedGoal] || "Recommended Opportunities";
-
-                        return (
-                          <div className="bg-white rounded-lg p-4 border-l-4 border-purple-500">
-                            <h3 className="font-semibold text-gray-900 mb-2">
-                              {emoji} {title}
-                            </h3>
-                            <ul className="list-disc list-inside space-y-2">
-                              {recommendations.map(
-                                (item: any, idx: number) => {
-                                  // Handle both string and object formats
-                                  const isObject = typeof item === "object" && item !== null;
-                                  const itemTitle = isObject ? item.title || item.name : item;
-                                  const itemUrl = isObject ? item.url || item.link : null;
-                                  
-                                  return (
-                                    <li key={idx} className="text-gray-700">
-                                      {itemUrl ? (
-                                        <a
-                                          href={itemUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:text-blue-800 underline"
-                                        >
-                                          {itemTitle}
-                                        </a>
-                                      ) : (
-                                        itemTitle
-                                      )}
-                                    </li>
-                                  );
-                                }
-                              )}
-                            </ul>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Roadmap */}
-                      {parsed.roadmap && Array.isArray(parsed.roadmap) && (
-                        <div className="bg-white rounded-lg p-4 border-l-4 border-red-500">
+                      {/* Tips and Tricks */}
+                      {parsed.tips_and_tricks && Array.isArray(parsed.tips_and_tricks) && (
+                        <div className="bg-white rounded-lg p-4 border-l-4 border-purple-500">
                           <h3 className="font-semibold text-gray-900 mb-2">
-                            🗺️ Peta Jalan Tindakan Anda
+                            ✨ Tips & Tricks Penting
                           </h3>
-                          <ol className="list-decimal list-inside space-y-2">
-                            {parsed.roadmap.map((step: string, idx: number) => (
+                          <ul className="list-disc list-inside space-y-2">
+                            {parsed.tips_and_tricks.map((tip: string, idx: number) => (
                               <li key={idx} className="text-gray-700">
-                                {step}
+                                {tip}
                               </li>
                             ))}
-                          </ol>
+                          </ul>
                         </div>
                       )}
 
-                      {/* Recommended Learning */}
-                      {parsed.recommended_learning &&
-                        Array.isArray(parsed.recommended_learning) && (
+                      {/* Recommended Resources */}
+                      {parsed.recommended_resources &&
+                        Array.isArray(parsed.recommended_resources) && (
                           <div className="bg-white rounded-lg p-4 border-l-4 border-indigo-500">
                             <h3 className="font-semibold text-gray-900 mb-2">
                               📚 Sumber Belajar yang Direkomendasikan
                             </h3>
-                            <ul className="list-disc list-inside space-y-2">
-                              {parsed.recommended_learning.map(
-                                (resource: any, idx: number) => {
-                                  // Handle both string and object formats
-                                  const isObject = typeof resource === "object" && resource !== null;
-                                  const title = isObject ? resource.title || resource.name : resource;
-                                  const url = isObject ? resource.url || resource.link : null;
-                                  
+                            <ul className="space-y-3">
+                              {parsed.recommended_resources.map(
+                                (resource: unknown, idx: number) => {
+                                  const resourceStr = String(resource);
+                                  // Parse format: "Title - link1 / link2 / link3"
+                                  const parts = resourceStr.split(" - ");
+                                  const title = parts[0] || "Resource";
+                                  const links = parts[1] ? parts[1].split(" / ").map((l) => l.trim()).filter((l) => l) : [];
+
                                   return (
-                                    <li key={idx} className="text-gray-700">
-                                      {url ? (
-                                        <a
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:text-blue-800 underline"
-                                        >
-                                          {title}
-                                        </a>
-                                      ) : (
-                                        title
-                                      )}
-                                    </li>
+                                    <div key={idx} className="border-b border-gray-200 pb-2 last:border-b-0 last:pb-0">
+                                      <p className="font-medium text-gray-800 mb-1">{title}</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {links.map((link: string, linkIdx: number) => (
+                                          <a
+                                            key={linkIdx}
+                                            href={link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                                          >
+                                            Link {linkIdx + 1}
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                            </svg>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
                                   );
                                 }
                               )}
@@ -530,30 +403,27 @@ export default function CoachAiContent() {
                   );
                 }
               })()}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Bottom Actions */}
-      <div className="shrink-0 bg-white border-t border-gray-200 p-6">
+        <div className="shrink-0 bg-white border-t border-gray-200 p-6">
         <div className="flex gap-3">
-          {(selectedActivities.length > 0 ||
-            selectedGoal ||
+          {(selectedActivity !== null ||
             aiResponse) && (
             <button
               onClick={() => {
-                setSelectedActivities([]);
-                setSelectedGoal("");
+                setSelectedActivity(null);
                 setAiResponse(null);
               }}
               className="px-6 py-4 rounded-lg border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition shadow-sm"
             >
               Clear All
             </button>
-          )}
-
-          <button
+          )}          <button
             onClick={handleStartAI}
             disabled={!canStartAI || isLoading}
             className={`flex-1 px-6 py-4 rounded-lg font-medium transition flex items-center justify-center gap-3 shadow-sm ${
@@ -583,7 +453,7 @@ export default function CoachAiContent() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Generating...
+                <span className="text-sm">Analyzing... (ini membutuhkan waktu ~20-30 detik)</span>
               </>
             ) : (
               <>
