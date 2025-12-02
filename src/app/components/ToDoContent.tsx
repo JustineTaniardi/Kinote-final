@@ -8,7 +8,7 @@ import { useTasks, useTaskMutation } from "@/lib/hooks/useTasks";
 import { showSuccess, showError } from "@/lib/toast";
 import type { Task } from "@/lib/hooks/useTasks";
 
-// Interface for ToDo item
+// Item
 interface ToDoItem {
   id: number;
   status: string;
@@ -16,7 +16,7 @@ interface ToDoItem {
   category: string;
   priority: string;
   deadline: string;
-  deadlineRaw?: string; // ISO format for sorting
+  deadlineRaw?: string; // ISO
   startTime?: string;
   endTime?: string;
   description: string;
@@ -40,7 +40,7 @@ interface ToDoFormData {
   status?: string;
 }
 
-// CSS for animations
+// Animations
 const strikeStyles = `
   .row-transition {
     transition: all 0.35s cubic-bezier(.2,.8,.2,1);
@@ -64,7 +64,7 @@ const strikeStyles = `
 const ToDoContent: React.FC = () => {
   const sortDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Inject CSS for animations
+  // Inject
   useEffect(() => {
     const style = document.createElement("style");
     style.textContent = strikeStyles;
@@ -74,7 +74,7 @@ const ToDoContent: React.FC = () => {
     };
   }, []);
 
-  // State variables
+  // States
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [editingCell, setEditingCell] = useState<{
     id: number;
@@ -87,7 +87,7 @@ const ToDoContent: React.FC = () => {
   const [sortOpen, setSortOpen] = useState(false);
   const [currentSort, setCurrentSort] = useState<string | null>(null);
 
-  // Close dropdown when clicking outside
+  // Outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -107,11 +107,11 @@ const ToDoContent: React.FC = () => {
     };
   }, [sortOpen]);
 
-  // Fetch tasks from API
+  // API
   const { data: tasks, refetch } = useTasks();
   const { deleteTask, updateTask } = useTaskMutation();
 
-  // Click outside handler for dropdown
+  // Click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -131,7 +131,7 @@ const ToDoContent: React.FC = () => {
     };
   }, [editingCell]);
 
-  // Sort function - MUST be defined before useMemo that uses it
+  // Sort
   const getSortedTodos = (items: ToDoItem[]) => {
     if (!currentSort) return items;
 
@@ -153,7 +153,7 @@ const ToDoContent: React.FC = () => {
           let dateTimeB: Date;
           
           if (a.deadlineRaw && a.startTime) {
-            // Combine ISO date with startTime
+            // Combine
             const dateOnly = a.deadlineRaw.split('T')[0];
             dateTimeA = new Date(`${dateOnly}T${a.startTime}`);
           } else if (a.deadlineRaw) {
@@ -204,16 +204,16 @@ const ToDoContent: React.FC = () => {
     }
   };
 
-  // Memoize converted todos from API data
+  // Memoize
   const convertedTodos = useMemo(() => {
     if (tasks && tasks.length > 0) {
       return tasks.map((task: Task) => {
-        // Extract status name from nested object
+        // Extract status
         const statusName = typeof task.status === 'object' && task.status !== null && 'name' in task.status
           ? (task.status as any).name
           : task.status || "Not Started";
         
-        // Extract category name from nested object
+        // Extract cat
         const categoryName = typeof (task as any).category === 'object' && (task as any).category !== null && 'name' in (task as any).category
           ? (task as any).category.name
           : (task as any).category || "";
@@ -241,7 +241,7 @@ const ToDoContent: React.FC = () => {
           updatedAt: task.updatedAt,
         };
         
-        // Debug log untuk setiap item
+        // Debug
         console.log(`[DEBUG] Task: ${convertedItem.title}, Status: "${convertedItem.status}", ID: ${task.id}`);
         
         return convertedItem;
@@ -250,11 +250,11 @@ const ToDoContent: React.FC = () => {
     return null;
   }, [tasks]);
 
-  // Use API todos if available, otherwise use empty state
+  // API
   const baseTodos =
     convertedTodos && convertedTodos.length > 0 ? convertedTodos : todos;
 
-  // Helper function to sort todos - pending first, then completed
+  // Sort
   const sortByStatus = (todosToSort: ToDoItem[]): ToDoItem[] => {
     const pending = todosToSort.filter((item) => {
       const statusLower = item.status?.toLowerCase() || "";
@@ -267,13 +267,13 @@ const ToDoContent: React.FC = () => {
     return [...pending, ...completed];
   };
 
-  // Apply sorting to display todos
+  // Apply
   const displayTodos = useMemo(
     () => sortByStatus(getSortedTodos(baseTodos)),
     [baseTodos, currentSort]
   );
 
-  // Handler for checkbox
+  // Checkbox
   const handleSelectItem = async (id: number) => {
     console.log(`[DEBUG] handleSelectItem called for ID: ${id}`);
     const item = baseTodos.find((t) => t.id === id);
@@ -292,7 +292,7 @@ const ToDoContent: React.FC = () => {
     try {
       if (!isCompleted) {
         console.log(`[DEBUG] Marking task as completed`);
-        // Get status ID for "completed"
+        // Status ID
         const statusResponse = await fetch("/api/status", {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("authToken")}`,
@@ -332,7 +332,7 @@ const ToDoContent: React.FC = () => {
         }
       } else {
         console.log(`[DEBUG] Marking task as pending`);
-        // Get status ID for "pending"
+        // Pending ID
         const statusResponse = await fetch("/api/status", {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("authToken")}`,

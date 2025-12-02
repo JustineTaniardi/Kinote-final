@@ -60,7 +60,7 @@ export default function ToDoDetailSidebar({
 
   const { deleteTask, updateTask } = useTaskMutation();
 
-  // Calculate duration whenever times change
+  // Calc duration
   useEffect(() => {
     const [startHour, startMin] = editStartTime.split(":").map(Number);
     const [endHour, endMin] = editEndTime.split(":").map(Number);
@@ -70,21 +70,21 @@ export default function ToDoDetailSidebar({
 
     let diffMinutes = endMinutes - startMinutes;
     
-    // Validasi 1: Jika endTime < startTime, berarti ada pergantian hari (tidak diizinkan)
+    // Check midnight
     if (diffMinutes < 0) {
       setEditTimeError("⚠️ Waktu tidak boleh melewati tengah malam. Pilih waktu dalam hari yang sama (mis: 08:00 - 23:59)");
       setEditDuration("0j 0m");
       return;
     }
     
-    // Validasi 2: Jika waktu sama (0 menit), harus minimal 1 menit
+    // Min 1 min
     if (diffMinutes === 0) {
       setEditTimeError("⚠️ Waktu mulai dan selesai tidak boleh sama. Harus ada durasi minimal 1 menit");
       setEditDuration("0j 0m");
       return;
     }
 
-    // Clear error jika valid
+    // Clear
     setEditTimeError(null);
 
     const hours = Math.floor(diffMinutes / 60);
@@ -115,8 +115,8 @@ export default function ToDoDetailSidebar({
         let dateValue = "";
         if (item.deadline) {
           try {
-            // Check if deadline is already in YYYY-MM-DD format
-            if (item.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // YYYY-MM-DD
+            if (deadline.match(/^\d{4}-\d{2}-\d{2}$/)) {
               dateValue = item.deadline;
             } else {
               // Parse ISO string and extract date part without timezone conversion

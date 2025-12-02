@@ -80,8 +80,8 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
         console.error(`   Please verify your Gmail setup:`);
         console.error(`      1. 2-Factor Authentication is enabled`);
         console.error(`      2. App password is generated at: https://myaccount.google.com/apppasswords`);
-        console.error(`      3. App password in .env.local has NO SPACES`);
-        console.error(`      4. Dev server has been restarted after .env.local changes\n`);
+        console.error(`      3. App password in .env has NO SPACES`);
+        console.error(`      4. Dev server has been restarted after .env changes\n`);
         
         // In development mode, extract and log the reset link for manual testing
         if (process.env.NODE_ENV === "development") {
@@ -96,11 +96,8 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       console.error(`   Error: ${JSON.stringify(error)}`);
     }
 
-    // Don't re-throw in development mode to allow form to show success message
-    // In production, you would want stricter error handling
-    if (process.env.NODE_ENV === "production") {
-      throw error;
-    }
+    // Always throw error to proper error handling in API routes
+    throw error;
   }
 }
 

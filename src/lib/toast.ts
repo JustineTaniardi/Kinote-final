@@ -1,4 +1,4 @@
-// Toast notification utility
+// Toast
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastOptions {
@@ -6,7 +6,7 @@ export interface ToastOptions {
   position?: 'top' | 'bottom';
 }
 
-// Create toast function
+// Toast
 export function showToast(
   message: string,
   type: ToastType = 'info',
@@ -14,7 +14,7 @@ export function showToast(
 ) {
   const { duration = 3000, position = 'top' } = options;
 
-  // Create toast container if it doesn't exist
+  // Container
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -29,7 +29,7 @@ export function showToast(
     document.body.appendChild(container);
   }
 
-  // Create toast element
+  // Element
   const toast = document.createElement('div');
   const bgColor = {
     success: 'bg-green-500',
@@ -45,7 +45,7 @@ export function showToast(
   `;
   toast.textContent = message;
 
-  // Add icon
+  // Icon
   const icon = document.createElement('span');
   icon.textContent = {
     success: '✓',
@@ -57,13 +57,13 @@ export function showToast(
 
   container.appendChild(toast);
 
-  // Auto remove after duration
+  // Remove
   setTimeout(() => {
     toast.style.animation = 'fadeOut 0.3s ease-out forwards';
     setTimeout(() => toast.remove(), 300);
   }, duration);
 
-  // Add style for animation
+  // Animation style
   if (!document.querySelector('style[data-toast]')) {
     const style = document.createElement('style');
     style.setAttribute('data-toast', 'true');

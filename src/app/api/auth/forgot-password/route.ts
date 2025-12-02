@@ -101,8 +101,15 @@ export async function POST(req: Request) {
         subject: emailTemplate.subject,
         html: emailTemplate.html,
       });
-      } catch (emailError) {
-      throw emailError;
+    } catch (emailError) {
+      console.error("Email sending error in forgot-password:", emailError);
+      return NextResponse.json(
+        { 
+          message: "Failed to send reset email. Please check email configuration.",
+          error: emailError instanceof Error ? emailError.message : "Unknown error"
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
@@ -113,8 +120,12 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
+    console.error("Forgot-password error:", error);
     return NextResponse.json(
-      { message: "Internal server error" },
+      { 
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

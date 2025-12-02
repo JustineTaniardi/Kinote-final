@@ -52,7 +52,7 @@ export default function StreakTimerModal({
   streakId,
   onComplete,
 }: StreakTimerModalProps) {
-  // Initialize position with viewport constraints
+  // Init position
   const initializePosition = () => {
     if (typeof window === "undefined") return null;
 
@@ -63,7 +63,7 @@ export default function StreakTimerModal({
     let initialX = window.innerWidth / 2 - 134;
     let initialY = window.innerHeight / 2 - 110;
 
-    // Constrain initial position to viewport
+    // Constrain
     if (initialX < PADDING) initialX = PADDING;
     if (initialX + MODAL_WIDTH > window.innerWidth - PADDING) {
       initialX = window.innerWidth - MODAL_WIDTH - PADDING;
@@ -76,7 +76,7 @@ export default function StreakTimerModal({
     return { x: initialX, y: initialY };
   };
 
-  // Load persisted state from localStorage
+  // Load state
   const loadPersistedState = () => {
     if (typeof window === "undefined") return null;
     try {
@@ -90,8 +90,7 @@ export default function StreakTimerModal({
     return null;
   };
 
-  // ✅ ALWAYS use fresh initial values - don't load persisted state on mount
-  // Timer should start fresh each time the modal opens with the fixed user input values
+  // Fresh values
   const [mode, setMode] = useState<Mode>("focus");
   const [isRunning, setIsRunning] = useState(false);
   const [focusSeconds, setFocusSeconds] = useState(focusMinutes * 60);
@@ -109,17 +108,16 @@ export default function StreakTimerModal({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [showEndSessionModal, setShowEndSessionModal] = useState(false); // ✅ Popup modal state
-  const [confirmAction, setConfirmAction] = useState<"cancel" | "end">("cancel"); // ✅ Track which action user wants
+  const [showEndSessionModal, setShowEndSessionModal] = useState(false); // Modal
+  const [confirmAction, setConfirmAction] = useState<"cancel" | "end">("cancel"); // Action
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ✅ Lock initial break values so they can't change even if props change
-  // Use refs to store the initial values when modal first opens
+  // Lock break
   const lockedBreakMinutesRef = useRef<number>(breakMinutes);
   const lockedInitialBreakRepsRef = useRef<number>(initialBreakRepetitions);
 
-  // Persist state to localStorage during the session
+  // Save state
   useEffect(() => {
     if (isOpen && position) {
       const stateToSave = {
@@ -150,8 +148,7 @@ export default function StreakTimerModal({
     position,
   ]);
 
-  // ✅ Lock in the break values when modal first opens to prevent external changes
-  // This ensures break time and break repetitions don't change even if props update
+  // Lock on open
   useEffect(() => {
     if (isOpen) {
       lockedBreakMinutesRef.current = breakMinutes;
@@ -159,7 +156,7 @@ export default function StreakTimerModal({
     }
   }, [isOpen, breakMinutes, initialBreakRepetitions]);
 
-  // Header drag handler
+  // Drag
   const handleHeaderMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -180,24 +177,23 @@ export default function StreakTimerModal({
       const MODAL_HEIGHT = 500; // Approximate height
       const PADDING = 10; // Padding from viewport edges
 
-      // Calculate new position
+      // Calc pos
       let newX = e.clientX - dragOffset.x;
       let newY = e.clientY - dragOffset.y;
 
-      // Constrain to viewport boundaries
-      // Left boundary
+      // Constrain
       if (newX < PADDING) {
         newX = PADDING;
       }
-      // Right boundary
+      // Right
       if (newX + MODAL_WIDTH > window.innerWidth - PADDING) {
         newX = window.innerWidth - MODAL_WIDTH - PADDING;
       }
-      // Top boundary
+      // Top
       if (newY < PADDING) {
         newY = PADDING;
       }
-      // Bottom boundary
+      // Bottom
       if (newY + MODAL_HEIGHT > window.innerHeight - PADDING) {
         newY = window.innerHeight - MODAL_HEIGHT - PADDING;
       }
@@ -221,7 +217,7 @@ export default function StreakTimerModal({
     };
   }, [isDragging, dragOffset]);
 
-  // Timer logic
+  // Timer
   useEffect(() => {
     if (!isRunning || !isOpen) {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -232,13 +228,13 @@ export default function StreakTimerModal({
       if (mode === "focus") {
         setFocusSeconds((s: number) => {
           if (s <= 1) {
-            // Focus time finished - complete
+            // Focus done
             setIsRunning(false);
-            // Calculate total focus time accumulated
+            // Total focus
             const totalFocus = totalAccumulatedFocus + (focusMinutes * 60 - 1);
             if (onComplete) {
               onComplete(totalFocus, usedBreakReps, breakSessions);
-              // ✅ Clear timer state when focus time completes
+              // Clear
               setTimeout(() => localStorage.removeItem("streakTimerState"), 100);
             }
             return 0;
@@ -248,15 +244,15 @@ export default function StreakTimerModal({
       } else if (mode === "break") {
         setBreakSeconds((s: number) => {
           if (s <= 1) {
-            // Break time finished - return to focus with saved time
+            // Break done
             setMode("focus");
-            // Don't auto-start, let user manually continue if they want
+            // Don't auto-start
             setIsRunning(false);
-            // Add this completed break session to history
+            // Add session
             const newBreakSession: BreakSession = {
               startTime: Date.now(),
               endTime: Date.now(),
-              duration: lockedBreakMinutesRef.current * 60, // ✅ Use locked value
+              duration: lockedBreakMinutesRef.current * 60, // Use locked
               focusTimeBeforeBreak: savedFocusSeconds,
               type: "completed",
             };
@@ -292,34 +288,33 @@ export default function StreakTimerModal({
   const isBreakAvailable = remainingBreakReps > 0;
 
   const handleStartPause = () => {
-    setIsRunning(!isRunning); // Toggle start/pause in focus mode
+    setIsRunning(!isRunning); // Toggle
   };
 
   const handleBreak = () => {
     if (remainingBreakReps > 0 && mode === "focus") {
-      // BREAK button clicked - save accumulated focus time, switch to break
-      // Update total accumulated focus time before taking break
+      // Save & switch
+      // Total focus
       setTotalAccumulatedFocus(
         totalAccumulatedFocus + (focusMinutes * 60 - focusSeconds)
       );
       setSavedFocusSeconds(focusSeconds);
       
-      // NOTE: Do NOT update breakCount in the Streak table
-      // breakCount is a user preference for how many break sessions are allowed per activity
-      // It should remain constant and not be decremented during a session
-      // The actual break count used in this session is tracked in local state (remainingBreakReps/usedBreakReps)
+      // NOTE: breakCount not changed
+      // Static pref, not decremented
+      // Session tracking in local state
       
       setRemainingBreakReps((prev: number) => prev - 1);
       setUsedBreakReps((prev: number) => prev + 1);
       setMode("break");
-      setBreakSeconds(lockedBreakMinutesRef.current * 60); // ✅ Use locked value
-      // Immediately start break timer
+      setBreakSeconds(lockedBreakMinutesRef.current * 60); // Locked
+      // Start
       setIsRunning(true);
     }
   };
 
   const handleSkipBreak = () => {
-    // SKIP BREAK button clicked - record skipped break session and return to focus mode
+    // Skip & return
     const skippedBreakSession: BreakSession = {
       startTime: Date.now(),
       duration: 0,
@@ -329,17 +324,17 @@ export default function StreakTimerModal({
     setBreakSessions([...breakSessions, skippedBreakSession]);
     setMode("focus");
     setFocusSeconds(savedFocusSeconds);
-    setIsRunning(true); // Auto-continue focus timer after skipping break
+    setIsRunning(true); // Continue
   };
 
   const handleContinueBreak = () => {
-    // Continue break timer from pause
+    // Continue
     setIsRunning(true);
   };
 
   const handleBackToFocus = () => {
-    // Return to focus mode during break - record break session with elapsed time
-    const elapsedBreakTime = lockedBreakMinutesRef.current * 60 - breakSeconds; // ✅ Use locked value
+    // Back & record
+    const elapsedBreakTime = lockedBreakMinutesRef.current * 60 - breakSeconds; // Locked
     const completedBreakSession: BreakSession = {
       startTime: Date.now(),
       duration: elapsedBreakTime,
@@ -349,7 +344,7 @@ export default function StreakTimerModal({
     setBreakSessions([...breakSessions, completedBreakSession]);
     setMode("focus");
     setFocusSeconds(savedFocusSeconds);
-    setIsRunning(true); // Auto-continue focus timer
+    setIsRunning(true); // Continue
   };
 
   const getMainButtonLabel = (): string => {
@@ -360,53 +355,49 @@ export default function StreakTimerModal({
   };
 
   const handleClose = () => {
-    // ✅ X button clicked - check if there's significant focus time
+    // Check time
     const totalFocus =
       totalAccumulatedFocus +
       (mode === "focus" ? focusMinutes * 60 - focusSeconds : 0);
     
-    // If no significant focus time (< 10 minutes), close directly without popup
+    // < 10 min close
     if (totalFocus < 600) {
-      // ✅ Clear timer state from localStorage when cancelled
+      // Clear
       localStorage.removeItem("streakTimerState");
       setShowEndSessionModal(false);
       setConfirmAction("cancel"); // Reset to default state
       onClose();
     } else {
-      // If there is significant focus time, show confirmation popup for cancel
+      // Show popup
       setConfirmAction("cancel");
       setShowEndSessionModal(true);
     }
   };
 
-  // ✅ Cancel activity - if focus time >= 10 minutes, treat as end session with form
+  // Cancel activity
   const handleCancelActivity = () => {
     setIsRunning(false);
-    
-    // Calculate total focus time accumulated
+    // Total
     const totalFocus =
       totalAccumulatedFocus +
       (mode === "focus" ? focusMinutes * 60 - focusSeconds : 0);
-    
-    // If accumulated more than 10 minutes (600 seconds), show form like end session
+    // >= 10 min show form
     if (totalFocus >= 600) {
       if (onComplete) {
         onComplete(totalFocus, usedBreakReps, breakSessions);
       }
     }
-    
-    // ✅ Clear timer state from localStorage when cancelled
+    // Clear
     localStorage.removeItem("streakTimerState");
     setShowEndSessionModal(false);
     onClose(); // Close the timer
   };
 
-  // ✅ End session early - save accumulated focus time and complete
+  // End session
   const handleEndSession = async () => {
     try {
       setIsRunning(false);
-
-      // Calculate total focus time accumulated
+      // Total
       const totalFocus =
         totalAccumulatedFocus +
         (mode === "focus" ? focusMinutes * 60 - focusSeconds : 0);
@@ -414,7 +405,7 @@ export default function StreakTimerModal({
         onComplete(totalFocus, usedBreakReps, breakSessions);
       }
       
-      // ✅ Clear timer state from localStorage when session ends
+      // Clear
       localStorage.removeItem("streakTimerState");
       
       setShowEndSessionModal(false);
@@ -425,7 +416,7 @@ export default function StreakTimerModal({
     }
   };
 
-  // ✅ Confirm handler for popup
+  // Confirm
   const confirmEndSession = () => {
     if (confirmAction === "cancel") {
       handleCancelActivity();
@@ -434,12 +425,12 @@ export default function StreakTimerModal({
     }
   };
 
-  // ✅ Cancel handler for popup - resume timer
+  // Cancel popup
   const cancelEndSession = () => {
     setShowEndSessionModal(false);
-    setConfirmAction("cancel"); // Reset to default state
+    setConfirmAction("cancel"); // Reset
     if (confirmAction === "end") {
-      setIsRunning(true); // Resume timer only if user was confirming end session
+      setIsRunning(true); // Resume
     }
   };
 
@@ -447,10 +438,10 @@ export default function StreakTimerModal({
   if (isMinimized) {
     return (
       <>
-        {/* Backdrop - Very light, non-blocking */}
+        {/* Backdrop */}
         <div className="fixed inset-0 bg-black/5 z-40" />
 
-        {/* Minimized Button - Bottom Right Corner (Desktop) */}
+        {/* Min button */}
         <button
           onClick={() => setIsMinimized(false)}
           className="hidden md:flex fixed bottom-6 right-6 z-50 w-24 h-24 rounded-full bg-[#161d36] text-white shadow-lg hover:bg-[#1a2140] active:scale-95 transition-all items-center justify-center flex-col"
@@ -461,7 +452,7 @@ export default function StreakTimerModal({
           </div>
         </button>
 
-        {/* Mobile Minimized - Collapsed Banner */}
+        {/* Mobile min */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#161d36] px-4 py-3 flex items-center justify-between">
           <div className="text-white font-bold text-sm">{title}</div>
           <div className="text-white text-base font-mono font-bold">
@@ -493,10 +484,10 @@ export default function StreakTimerModal({
 
   return (
     <>
-      {/* Backdrop - Very light, non-blocking */}
+      {/* Backdrop */}
       <div className="fixed inset-0 bg-black/5 z-40" />
 
-      {/* DESKTOP VIEW - Draggable Floating Timer Card (hidden on mobile) */}
+      {/* Desktop */}
       <div
         ref={containerRef}
         className="hidden md:block fixed z-50 pointer-events-auto"
@@ -507,7 +498,7 @@ export default function StreakTimerModal({
         }}
       >
         <div className="bg-[#f0f2f9] border-2 border-[#5e6270] rounded-sm shadow-md overflow-hidden">
-          {/* Header - Draggable */}
+          {/* Header */}
           <div
             onMouseDown={handleHeaderMouseDown}
             className="px-4 py-3 flex items-center justify-between cursor-move bg-[#f0f2f9] border-b border-[#e0e0e0]"
@@ -562,7 +553,7 @@ export default function StreakTimerModal({
 
           {/* Content */}
           <div className="p-3">
-            {/* Mode indicator */}
+            {/* Mode */}
             <div className="text-xs font-medium text-[#161d36] mb-2">
               Mode :{" "}
               <span className="font-semibold">
@@ -570,7 +561,7 @@ export default function StreakTimerModal({
               </span>
             </div>
 
-            {/* Timer Display */}
+            {/* Timer */}
             <div className="bg-[#f2f3f6] rounded-sm shadow-sm p-2 mb-3">
               <div className="bg-[#161d36] rounded-sm py-3 text-center">
                 <div className="text-2xl font-medium text-white font-mono tracking-wider">
@@ -579,7 +570,7 @@ export default function StreakTimerModal({
               </div>
             </div>
 
-            {/* Duration Type Label */}
+            {/* Duration */}
             <div className="text-xs font-medium text-[#161d36] mb-1">
               {isFocusMode ? "Fokus" : "istirahat"}
             </div>
@@ -589,7 +580,7 @@ export default function StreakTimerModal({
               {isFocusMode ? focusMinutes : breakMinutes} Menit
             </div>
 
-            {/* Break Remaining Counter */}
+            {/* Break */}
             <div
               className={`mb-4 px-3 py-2 rounded-sm text-center text-xs font-medium ${
                 isBreakAvailable
@@ -611,7 +602,7 @@ export default function StreakTimerModal({
                   {getMainButtonLabel()}
                 </button>
 
-                {/* Break Button - Only show when timer running and breaks available */}
+                {/* Break */}
                 {isRunning && isBreakAvailable && (
                   <button
                     onClick={handleBreak}
@@ -621,7 +612,7 @@ export default function StreakTimerModal({
                   </button>
                 )}
 
-                {/* ✅ End Session Button - Only show when session has started */}
+                {/* End */}
                 {isRunning && (
                   <button
                     onClick={() => {
@@ -636,7 +627,7 @@ export default function StreakTimerModal({
               </>
             )}
 
-            {/* Skip Break Button - Show in break mode */}
+            {/* Break */}
             {mode === "break" && (
               <>
                 {isRunning ? (
@@ -736,7 +727,7 @@ export default function StreakTimerModal({
 
         {/* Mobile Content - Scrollable */}
         <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col">
-          {/* Mode Indicator */}
+          {/* Mode */}
           <div className="text-center mb-4">
             <div className="text-sm font-medium text-[#161d36] mb-1">Mode</div>
             <div className="text-2xl font-bold text-[#161d36]">
@@ -744,7 +735,7 @@ export default function StreakTimerModal({
             </div>
           </div>
 
-          {/* Timer Display - Large */}
+          {/* Timer */}
           <div className="bg-[#f2f3f6] rounded-lg shadow-sm p-4 mb-8 flex-1 flex flex-col justify-center">
             <div className="bg-[#161d36] rounded-lg py-8 text-center">
               <div className="text-6xl font-bold text-white font-mono tracking-wider">
@@ -753,7 +744,7 @@ export default function StreakTimerModal({
             </div>
           </div>
 
-          {/* Duration Info Card */}
+          {/* Duration */}
           <div className="bg-white rounded-lg p-4 mb-6 border border-[#e0e0e0]">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-[#161d36]">
@@ -765,7 +756,7 @@ export default function StreakTimerModal({
             </div>
           </div>
 
-          {/* Break Remaining Counter */}
+          {/* Break */}
           <div
             className={`mb-6 px-4 py-4 rounded-lg text-center font-bold ${
               isBreakAvailable

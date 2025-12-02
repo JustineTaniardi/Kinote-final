@@ -191,14 +191,22 @@ export async function POST(req: Request) {
         { status: 201 }
       );
     } catch (emailError) {
+      console.error("Email sending error in register:", emailError);
       return NextResponse.json(
-        { message: "Failed to send verification email. Please try again." },
+        { 
+          message: "Failed to send verification email. Please check email configuration.",
+          error: emailError instanceof Error ? emailError.message : "Unknown error"
+        },
         { status: 500 }
       );
     }
   } catch (error) {
+    console.error("Registration error:", error);
     return NextResponse.json(
-      { message: "Registration failed. Please try again later." },
+      { 
+        message: "Registration failed. Please try again later.",
+        error: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }
