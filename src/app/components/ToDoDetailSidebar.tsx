@@ -116,7 +116,7 @@ export default function ToDoDetailSidebar({
         if (item.deadline) {
           try {
             // YYYY-MM-DD
-            if (deadline.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            if (item.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) {
               dateValue = item.deadline;
             } else {
               // Parse ISO string and extract date part without timezone conversion
