@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import SidebarWrapper from "./SidebarWrapper";
 import ConfirmationModal from "./ConfirmationModal";
+import { showSuccess, showError } from "@/lib/toast";
 
 interface ActivityItem {
   id: number;
@@ -35,14 +37,30 @@ export default function ActivityDetailSidebar({
   onDelete,
   onEdit,
 }: Props) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   const handleExport = () => {
     if (item) {
       window.location.href = `/export/${item.id}`;
+    }
+  };
+
+  const handleStart = async () => {
+    if (!item) return;
+    setIsStarting(true);
+    try {
+      // Navigate to the streak page with the activity ID
+      router.push(`/streak?taskId=${item.id}`);
+      onClose();
+    } catch (error) {
+      console.error("Start activity error:", error);
+      showError("Failed to start activity");
+      setIsStarting(false);
     }
   };
 
@@ -205,7 +223,15 @@ export default function ActivityDetailSidebar({
       </div>
 
       {/* Action Buttons */}
-      <div className="px-6 py-4 border-t border-gray-200 flex gap-3 sticky bottom-0 bg-white">
+      <div className="px-6 py-4 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
+        <button
+          onClick={handleStart}
+          disabled={isStarting}
+          className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2"
+        >
+          <span>▶</span>
+          <span>{isStarting ? "Starting..." : "Start"}</span>
+        </button>
         <button
           onClick={() => setShowDeleteConfirm(true)}
           className="flex-1 px-4 py-2.5 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition"

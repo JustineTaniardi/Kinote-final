@@ -287,11 +287,14 @@ export default function StreakDetailSidebar({
           window.location.reload();
         }, 500);
       } else {
-        showError("Failed to delete streak");
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        const errorMessage = errorData.message || `Failed to delete streak (${response.status})`;
+        console.error("Delete failed:", response.status, errorData);
+        showError(errorMessage);
       }
     } catch (error) {
       console.error("Delete error:", error);
-      showError("Error deleting streak");
+      showError(error instanceof Error ? error.message : "Error deleting streak");
     } finally {
       setIsDeleting(false);
     }
