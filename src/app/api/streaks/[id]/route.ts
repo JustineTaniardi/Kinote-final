@@ -268,11 +268,14 @@ export async function DELETE(
     }
 
     const streakId = parseInt(id);
+    console.log(`[DELETE] Deleting streak ${streakId} for user ${userId}`);
+    
     const streak = await prisma.streak.findUnique({
       where: { id: streakId },
     });
 
     if (!streak) {
+      console.error(`[DELETE] Streak ${streakId} not found`);
       return NextResponse.json(
         { message: "Streak not found" },
         { status: 404 }
@@ -280,27 +283,45 @@ export async function DELETE(
     }
 
     if (streak.userId !== userId) {
+      console.error(`[DELETE] Forbidden - streak userId ${streak.userId} !== request userId ${userId}`);
       return NextResponse.json(
         { message: "Forbidden" },
         { status: 403 }
       );
     }
 
-    // Delete all history records first
+    // Delete in order to respect foreign key constraints:
+    // 1. Delete AiVerification records with this streakId
+    console.log(`[DELETE] Deleting AiVerification records for streak ${streakId}`);
+    await prisma.aiVerification.deleteMany({
+      where: { streakId },
+    });
+
+    // 2. Delete StreakHistory records (they have onDelete: Cascade but delete explicitly for clarity)
+    console.log(`[DELETE] Deleting StreakHistory records for streak ${streakId}`);
     await prisma.streakHistory.deleteMany({
       where: { streakId },
     });
 
-    // Delete the streak
+    // 3. Delete StreakExport records
+    console.log(`[DELETE] Deleting StreakExport records for streak ${streakId}`);
+    await prisma.streakExport.deleteMany({
+      where: { streakId },
+    });
+
+    // 4. Delete the streak itself
+    console.log(`[DELETE] Deleting streak ${streakId}`);
     await prisma.streak.delete({
       where: { id: streakId },
     });
 
+    console.log(`[DELETE] Streak ${streakId} deleted successfully`);
     return NextResponse.json({ message: "Streak deleted successfully" });
   } catch (error) {
-    console.error("Delete streak error:", error);
+    console.error("[DELETE] Delete streak error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: `Internal server error: ${errorMessage}` },
       { status: 500 }
     );
   }
