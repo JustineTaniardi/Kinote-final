@@ -307,6 +307,7 @@ export async function DELETE(
   try {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
+      console.error("[DELETE] Unauthorized - no userId");
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
@@ -315,11 +316,14 @@ export async function DELETE(
 
     const { id } = await params;
     const taskId = parseInt(id);
+    console.log(`[DELETE] Attempting to delete task ${taskId} by user ${userId}`);
+    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
 
     if (!task) {
+      console.error(`[DELETE] Task ${taskId} not found`);
       return NextResponse.json(
         { message: "Task not found" },
         { status: 404 }
@@ -327,27 +331,32 @@ export async function DELETE(
     }
 
     if (task.userId !== userId) {
+      console.error(`[DELETE] Forbidden - task userId ${task.userId} !== request userId ${userId}`);
       return NextResponse.json(
         { message: "Forbidden" },
         { status: 403 }
       );
     }
 
+    console.log(`[DELETE] Deleting task days for task ${taskId}`);
     // Delete task days first (due to foreign key constraint)
     await prisma.taskDay.deleteMany({
       where: { taskId },
     });
 
+    console.log(`[DELETE] Deleting task ${taskId}`);
     // Delete the task
     await prisma.task.delete({
       where: { id: taskId },
     });
 
+    console.log(`[DELETE] Task ${taskId} deleted successfully`);
     return NextResponse.json({ message: "Task deleted successfully" });
   } catch (error) {
-    console.error("Delete task error:", error);
+    console.error("[DELETE] Delete task error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: `Internal server error: ${errorMessage}` },
       { status: 500 }
     );
   }

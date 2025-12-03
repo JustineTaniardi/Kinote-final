@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import SidebarWrapper from "./SidebarWrapper";
 import ConfirmationModal from "./ConfirmationModal";
 import { Trash2, Edit2, Check, X } from "lucide-react";
@@ -42,10 +43,12 @@ export default function ToDoDetailSidebar({
   onDelete,
   onEdit,
 }: Props) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [editTitle, setEditTitle] = useState(item?.title || "");
   const [editCategory, setEditCategory] = useState(item?.category || "");
   const [editPriority, setEditPriority] = useState(item?.priority || "");
@@ -175,14 +178,68 @@ export default function ToDoDetailSidebar({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
+      console.log("[DELETE] handleDelete called for item:", item?.id);
       await deleteTask(item.id);
+      console.log("[DELETE] Task deleted successfully");
       setShowDeleteConfirm(false);
       onClose();
       onDelete?.(item.id);
+      showSuccess("Task deleted successfully!");
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error) {
-      console.error("Delete error:", error);
-      showError("Failed to delete task");
+      console.error("[DELETE] handleDelete error:", error);
+      showError(error instanceof Error ? error.message : "Failed to delete task");
       setIsDeleting(false);
+    }
+  };
+
+  const handleStart = async () => {
+    if (!item) return;
+    setIsStarting(true);
+    try {
+      console.log("[START] Starting task:", item.id);
+      const token = localStorage.getItem("authToken");
+      
+      if (!token) {
+        showError("Authentication required");
+        setIsStarting(false);
+        return;
+      }
+
+      // Create a streak from this task
+      const payload = {
+        title: item.title,
+        description: item.description || "",
+        totalMinutes: 30, // Default 30 minutes
+        breakTime: 5, // Default 5 minutes
+      };
+      
+      const response = await fetch(`/api/streaks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const streak = await response.json();
+        console.log("[START] Streak created:", streak.id);
+        showSuccess("Task started!");
+        router.push(`/streak?streakId=${streak.id}`);
+        onClose();
+      } else {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        showError(errorData.message || "Failed to start task");
+        setIsStarting(false);
+      }
+    } catch (error) {
+      console.error("[START] Error:", error);
+      showError(error instanceof Error ? error.message : "Failed to start task");
+      setIsStarting(false);
     }
   };
 
@@ -531,6 +588,14 @@ export default function ToDoDetailSidebar({
             </>
           ) : (
             <>
+              <button
+                onClick={handleStart}
+                disabled={isStarting}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition"
+              >
+                <span>▶</span>
+                {isStarting ? "Starting..." : "Start"}
+              </button>
               <button
                 onClick={() => setIsEditing(true)}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"

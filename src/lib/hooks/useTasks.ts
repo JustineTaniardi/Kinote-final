@@ -123,6 +123,8 @@ export function useTaskMutation() {
 
   const deleteTask = useCallback(async (taskId: number) => {
     const token = localStorage.getItem("authToken");
+    console.log("[DELETE] Deleting task", taskId, "with token:", token ? "present" : "missing");
+    
     const response = await fetch(`/api/tasks/${taskId}`, {
       method: "DELETE",
       headers: {
@@ -130,8 +132,18 @@ export function useTaskMutation() {
       },
     });
 
+    console.log("[DELETE] Response status:", response.status);
+
     if (!response.ok) {
-      throw new Error(`Failed to delete task: ${response.statusText}`);
+      let errorMessage = `Failed to delete task: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        console.error("[DELETE] Could not parse error response:", e);
+      }
+      console.error("[DELETE] Error:", errorMessage);
+      throw new Error(errorMessage);
     }
 
     return response.json();

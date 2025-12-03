@@ -56,6 +56,8 @@ export default function ActivityDetailSidebar({
     try {
       // Get auth token
       const token = localStorage.getItem("authToken");
+      console.log("[START] Starting activity:", item.id, "token:", token ? "present" : "missing");
+      
       if (!token) {
         showError("Authentication required");
         setIsStarting(false);
@@ -63,33 +65,40 @@ export default function ActivityDetailSidebar({
       }
 
       // Start the streak/activity session
+      const payload = {
+        title: item.judul,
+        description: item.description || "",
+        totalMinutes: parseInt(item.totalTime || "0") || 30,
+        breakTime: parseInt(item.breakTime || "0") || 5,
+      };
+      
+      console.log("[START] Payload:", payload);
+      
       const response = await fetch(`/api/streaks`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: item.judul,
-          categoryId: item.kategori,
-          description: item.description || "",
-          totalMinutes: parseInt(item.totalTime || "0"),
-          breakTime: parseInt(item.breakTime || "0"),
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log("[START] Response status:", response.status);
+      
       if (response.ok) {
         const streak = await response.json();
+        console.log("[START] Streak created:", streak);
         showSuccess("Activity started!");
         router.push(`/streak?streakId=${streak.id}`);
         onClose();
       } else {
         const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        console.error("[START] Failed:", response.status, errorData);
         showError(errorData.message || "Failed to start activity");
         setIsStarting(false);
       }
     } catch (error) {
-      console.error("Start activity error:", error);
+      console.error("[START] Error:", error);
       showError(error instanceof Error ? error.message : "Failed to start activity");
       setIsStarting(false);
     }
@@ -111,12 +120,18 @@ export default function ActivityDetailSidebar({
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("authToken");
+      console.log("[DELETE] Starting delete for activity:", item.id, "with token:", token ? "present" : "missing");
+      
       const response = await fetch(`/api/tasks/${item.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      console.log("[DELETE] Response status:", response.status);
+      
       if (response.ok) {
+        const responseData = await response.json();
+        console.log("[DELETE] Success:", responseData);
         setShowDeleteConfirm(false);
         onDelete && onDelete(item.id);
         onClose();
@@ -127,13 +142,13 @@ export default function ActivityDetailSidebar({
       } else {
         const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
         const errorMessage = errorData.message || `Failed to delete activity (${response.status})`;
-        console.error("Delete failed:", response.status, errorData);
+        console.error("[DELETE] Failed:", response.status, errorData);
         showError(errorMessage);
+        setIsDeleting(false);
       }
     } catch (error) {
-      console.error("Delete error:", error);
+      console.error("[DELETE] Error:", error);
       showError(error instanceof Error ? error.message : "Error deleting activity");
-    } finally {
       setIsDeleting(false);
     }
   };
