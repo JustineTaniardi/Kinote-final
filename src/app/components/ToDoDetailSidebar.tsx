@@ -171,17 +171,6 @@ export default function ToDoDetailSidebar({
   if (!mounted || !item) return null;
 
   const priorityOptions = ["Low", "Medium", "High"];
-    "Work",
-    "Learning",
-    "Personal",
-    "Health",
-    "Household",
-    "Project",
-    "Entertainment",
-    "Sports",
-    "Creativity",
-    "Finance",
-  ];
 
   const handleDelete = async () => {
     setIsDeleting(true);
