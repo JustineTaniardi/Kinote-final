@@ -227,19 +227,20 @@ ${recentHistoriesText}
 
 OUTPUT HANYA JSON (tanpa teks lain):
 {
-  "learning_conclusion": "Kesimpulan singkat apa yang dipelajari",
-  "strengths": ["strength 1", "strength 2", "strength 3", "strength 4"],
-  "areas_to_improve": ["area 1", "area 2", "area 3"],
-  "tips_and_tricks": ["tip 1 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 2 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 3 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 4 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 5 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 6 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 7 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 8 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA"]
+  "learning_conclusion": "Kesimpulan PANJANG (minimal 100 kata) yang detail tentang progres pembelajaran user, apa yang sudah dicapai, dan trajectory pembelajaran mereka",
+  "strengths": ["strength 1 DETAIL minimal 30 kata", "strength 2 DETAIL minimal 30 kata", "strength 3 DETAIL minimal 30 kata", "strength 4 DETAIL minimal 30 kata"],
+  "areas_to_improve": ["area 1 DETAIL dengan solusi minimal 30 kata", "area 2 DETAIL dengan solusi minimal 30 kata", "area 3 DETAIL dengan solusi minimal 30 kata"],
+  "tips_and_tricks": ["tip 1 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 2 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 3 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 4 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 5 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 6 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 7 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA", "tip 8 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 75 KATA"]
 }`;
 
-    const systemPrompt = `Anda adalah AI Learning Coach profesional. Analisis 10 history terakhir user dan berikan insight singkat tapi sangat valuable dan actionable.
+    const systemPrompt = `Anda adalah AI Learning Coach profesional. Analisis 10 history terakhir user dan berikan insight MENDALAM, DETAIL, dan sangat valuable dan actionable.
 PENTING:
-1. Tips HARUS SPESIFIK untuk tujuan user (Lomba/Pekerjaan/Kursus), bukan tips umum
-2. Setiap tip HARUS minimal 50 kata dengan detail konkret dan actionable
-3. JANGAN sertakan URL atau link apapun - hanya berikan tips dan strategi
-4. Fokus pada praktik, strategi, dan mindset yang bisa langsung diterapkan
-5. OUTPUT HANYA JSON, TIDAK ADA TEKS LAIN`;
+1. Learning Conclusion HARUS minimal 100 kata - jelaskan progres, pencapaian, dan trajectory pembelajaran mereka dengan detail
+2. Strengths & Areas to Improve HARUS minimal 30 kata masing-masing - detail dan spesifik untuk user mereka
+3. Tips HARUS minimal 75 kata per tip - SPESIFIK untuk tujuan user (Lomba/Pekerjaan/Kursus), bukan tips umum
+4. Semua feedback HARUS actionable dan detail dengan contoh konkret
+5. JANGAN sertakan URL atau link apapun - hanya berikan tips dan strategi
+6. OUTPUT HANYA JSON, TIDAK ADA TEKS LAIN`;
 
     // Call OpenAI
     const client = new OpenAI({ apiKey: OPENAI_API_KEY });

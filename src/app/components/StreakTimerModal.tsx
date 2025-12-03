@@ -441,14 +441,17 @@ export default function StreakTimerModal({
         {/* Backdrop */}
         <div className="fixed inset-0 bg-black/5 z-40" />
 
-        {/* Min button */}
+        {/* Min button - Hexagon shape */}
         <button
           onClick={() => setIsMinimized(false)}
-          className="hidden md:flex fixed bottom-6 right-6 z-50 w-24 h-24 rounded-full bg-[#161d36] text-white shadow-lg hover:bg-[#1a2140] active:scale-95 transition-all items-center justify-center flex-col"
+          className="hidden md:flex fixed bottom-6 right-6 z-50 w-32 h-32 bg-[#161d36] text-white shadow-lg hover:bg-[#1a2140] active:scale-95 transition-all items-center justify-center flex-col"
+          style={{
+            clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
+          }}
           title="Click to expand"
         >
           <div className="text-xs font-bold text-center leading-tight">
-            <div className="text-2xl">{formatTime(currentSeconds)}</div>
+            <div className="text-3xl">{formatTime(currentSeconds)}</div>
           </div>
         </button>
 
