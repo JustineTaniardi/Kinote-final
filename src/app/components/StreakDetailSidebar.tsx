@@ -743,12 +743,6 @@ export default function StreakDetailSidebar({
                 <Edit2 className="w-4 h-4" />
                 Edit
               </button>
-              <button
-                onClick={() => {}}
-                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium hover:bg-gray-200 transition cursor-not-allowed"
-              >
-                Start
-              </button>
             </>
           )}
         </div>
