@@ -242,7 +242,7 @@ export default function StreakContent({}: StreakContentProps) {
     setTimerOpen(false);
     
     // Show session details modal for mandatory input (description and photo)
-    // DO NOT add entry to list yet - wait for submission to complete
+    // History is created but not counted towards streak until photo is submitted
     if (timerFor.id && typeof timerFor.id === "number") {
       setCompletionStreakId(timerFor.id);
       setCompletionStreakTitle(timerFor.title);
@@ -379,8 +379,8 @@ export default function StreakContent({}: StreakContentProps) {
                   {weeklyGrouped.map(({ day }) => (
                     <div
                       key={`header-${day}`}
-                      className="text-center"
-                      style={{ minWidth: "160px", flexShrink: 0 }}
+                      className="flex-shrink-0 text-center flex items-center justify-center"
+                      style={{ width: "160px", minWidth: "160px" }}
                     >
                       <h3 className="text-sm font-semibold text-gray-900">{day}</h3>
                     </div>

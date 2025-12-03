@@ -14,7 +14,7 @@ interface Props {
 
 export default function StreakWeeklyColumn({ day, activities, onOpen, onStart, refreshTrigger }: Props) {
   return (
-    <div className="flex flex-col" style={{ minWidth: "160px", flexShrink: 0 }}>
+    <div className="flex-shrink-0 flex flex-col" style={{ width: "160px", minWidth: "160px" }}>
       {/* Activities Column - vertical stacking with consistent spacing */}
       <div className="flex flex-col gap-4">
         {activities.length > 0 ? (

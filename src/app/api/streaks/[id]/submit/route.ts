@@ -132,6 +132,9 @@ export async function POST(
       );
     }
 
+    // Check if this is the first time photo is being added (streak hasn't been counted yet)
+    const isFirstPhotoSubmission = !history.photoUrl || history.photoUrl === "";
+
     const updatedHistory = await prisma.streakHistory.update({
       where: { id: historyId },
       data: {
@@ -140,15 +143,18 @@ export async function POST(
       },
     });
 
-    // Increment streak count when session is completed with description and photo
-    await prisma.streak.update({
-      where: { id: streakId },
-      data: {
-        streakCount: {
-          increment: 1,
+    // Only increment streak count on FIRST successful photo submission
+    // This prevents double-counting if user resubmits with updated photo
+    if (isFirstPhotoSubmission) {
+      await prisma.streak.update({
+        where: { id: streakId },
+        data: {
+          streakCount: {
+            increment: 1,
+          },
         },
-      },
-    });
+      });
+    }
 
     return NextResponse.json(updatedHistory);
   } catch (error) {

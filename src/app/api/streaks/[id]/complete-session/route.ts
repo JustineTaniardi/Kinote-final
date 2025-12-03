@@ -146,52 +146,34 @@ export async function POST(
     );
 
     // Create new history entry with multiple breaks data
+    // NOTE: This is a TEMPORARY entry pending user confirmation in SessionDetailsModal
+    // It will be finalized in /submit when user provides description and photo
+    // If user cancels, this temporary entry will be marked as invalid/incomplete
     const now = new Date();
     const history = await prisma.streakHistory.create({
       data: {
         streakId,
         userId,
-        title,
-        description,
+        title: title || "",
+        description: "", // Empty until user submits in SessionDetailsModal
         startTime: now,
         endTime: now,
         focusDuration: focusSeconds,
         totalBreakTime,
-        duration: Math.round((focusSeconds + totalBreakTime) / 60), // Total duration in minutes
-        breakSessions: JSON.stringify(breakSessionsData), // Store as JSON string
+        duration: Math.round((focusSeconds + totalBreakTime) / 60),
+        breakSessions: JSON.stringify(breakSessionsData),
       },
     });
 
-    // Count verified sessions from StreakHistory for streak count
-    const verifiedCount = await prisma.streakHistory.count({
-      where: {
-        streakId,
-        userId,
-        verifiedAI: true,
-      },
-    });
-
-    // Update streak metadata
-    // NOTE: totalTime should NEVER be updated - it's the user's fixed duration input
-    // NOTE: breakTime should NEVER be updated - it's the user's break duration preference from setup
-    // Only update streakCount for analytics (count of verified histories)
-    await prisma.streak.update({
-      where: { id: streakId },
-      data: {
-        // ❌ DO NOT UPDATE totalTime - it must stay as the user's original input
-        // ❌ DO NOT UPDATE breakTime - it's user's preference for break duration, not accumulative
-        streakCount: verifiedCount, // Only count verified histories
-        updatedAt: new Date(),
-      },
-    });
+    // DO NOT increment streakCount here - only increment in /submit endpoint
+    // This prevents streak from counting if user cancels the modal
 
     return NextResponse.json({
       historyId: history.id,
       focusDuration: focusSeconds,
       totalBreakTime,
       breakRepetitionsUsed,
-      streakCount: verifiedCount,
-      sessionData: history,
+      message: "Session recorded temporarily - provide photo and description to finalize",
     });
   } catch (error) {
     console.error("Complete session error:", error);
