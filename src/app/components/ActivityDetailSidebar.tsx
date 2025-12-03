@@ -42,65 +42,10 @@ export default function ActivityDetailSidebar({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
 
   const handleExport = () => {
     if (item) {
       window.location.href = `/export/${item.id}`;
-    }
-  };
-
-  const handleStart = async () => {
-    if (!item) return;
-    setIsStarting(true);
-    try {
-      // Get auth token
-      const token = localStorage.getItem("authToken");
-      console.log("[START] Starting activity:", item.id, "token:", token ? "present" : "missing");
-      
-      if (!token) {
-        showError("Authentication required");
-        setIsStarting(false);
-        return;
-      }
-
-      // Start the streak/activity session
-      const payload = {
-        title: item.judul,
-        description: item.description || "",
-        totalMinutes: parseInt(item.totalTime || "0") || 30,
-        breakTime: parseInt(item.breakTime || "0") || 5,
-      };
-      
-      console.log("[START] Payload:", payload);
-      
-      const response = await fetch(`/api/streaks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      console.log("[START] Response status:", response.status);
-      
-      if (response.ok) {
-        const streak = await response.json();
-        console.log("[START] Streak created:", streak);
-        showSuccess("Activity started!");
-        router.push(`/streak?streakId=${streak.id}`);
-        onClose();
-      } else {
-        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-        console.error("[START] Failed:", response.status, errorData);
-        showError(errorData.message || "Failed to start activity");
-        setIsStarting(false);
-      }
-    } catch (error) {
-      console.error("[START] Error:", error);
-      showError(error instanceof Error ? error.message : "Failed to start activity");
-      setIsStarting(false);
     }
   };
 
@@ -284,14 +229,6 @@ export default function ActivityDetailSidebar({
 
       {/* Action Buttons */}
       <div className="px-6 py-4 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
-        <button
-          onClick={handleStart}
-          disabled={isStarting}
-          className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2"
-        >
-          <span>▶</span>
-          <span>{isStarting ? "Starting..." : "Start"}</span>
-        </button>
         <button
           onClick={() => setShowDeleteConfirm(true)}
           className="flex-1 px-4 py-2.5 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition"

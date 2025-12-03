@@ -48,7 +48,6 @@ export default function ToDoDetailSidebar({
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   const [editTitle, setEditTitle] = useState(item?.title || "");
   const [editCategory, setEditCategory] = useState(item?.category || "");
   const [editPriority, setEditPriority] = useState(item?.priority || "");
@@ -192,72 +191,6 @@ export default function ToDoDetailSidebar({
       console.error("[DELETE] handleDelete error:", error);
       showError(error instanceof Error ? error.message : "Failed to delete task");
       setIsDeleting(false);
-    }
-  };
-
-  const handleStart = async () => {
-    if (!item) {
-      showError("No item selected");
-      return;
-    }
-    
-    if (isEditing) {
-      showError("Please finish editing first");
-      return;
-    }
-    
-    setIsStarting(true);
-    try {
-      console.log("[START] Starting task:", item.id);
-      const token = localStorage.getItem("authToken");
-      
-      if (!token) {
-        showError("Authentication required");
-        setIsStarting(false);
-        return;
-      }
-
-      // Create a streak from this task
-      const payload = {
-        title: item.title,
-        description: item.description || "",
-        totalMinutes: 30, // Default 30 minutes
-        breakTime: 5, // Default 5 minutes
-      };
-      
-      console.log("[START] Sending payload:", payload);
-      const response = await fetch(`/api/streaks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      console.log("[START] Response status:", response.status);
-
-      if (response.ok) {
-        const streak = await response.json();
-        console.log("[START] Streak created:", streak.id);
-        showSuccess("Task started!");
-        // Reset state before navigation
-        setIsStarting(false);
-        // Add small delay to ensure state update and toast display
-        setTimeout(() => {
-          router.push(`/streak?streakId=${streak.id}`);
-          onClose();
-        }, 100);
-      } else {
-        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-        console.error("[START] Failed:", response.status, errorData);
-        showError(errorData.message || "Failed to start task");
-        setIsStarting(false);
-      }
-    } catch (error) {
-      console.error("[START] Error:", error);
-      showError(error instanceof Error ? error.message : "Failed to start task");
-      setIsStarting(false);
     }
   };
 
@@ -606,14 +539,6 @@ export default function ToDoDetailSidebar({
             </>
           ) : (
             <>
-              <button
-                onClick={handleStart}
-                disabled={isStarting}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 hover:disabled:bg-gray-400 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-              >
-                <span>▶</span>
-                {isStarting ? "Starting..." : "Start"}
-              </button>
               <button
                 onClick={() => setIsEditing(true)}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
