@@ -13,7 +13,6 @@ import {
   ClockIcon,
   CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
-import { CATEGORIES, SUBCATEGORIES } from "./ActivityCategories";
 import ConfirmationModal from "./ConfirmationModal";
 import StreakHistoryModal from "./StreakHistoryModal";
 
@@ -59,6 +58,9 @@ export default function StreakDetailSidebar({
   );
   const [historyCountData, setHistoryCountData] = useState(0);
   const [editError, setEditError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [subCategories, setSubCategories] = useState<Array<{ id: number; name: string; categoryId: number }>>([]);
+  const [loadingCategoryData, setLoadingCategoryData] = useState(false);
 
   // Define handleEdit callback early to maintain consistent hook order
   const handleEdit = useCallback(() => {
@@ -104,18 +106,42 @@ export default function StreakDetailSidebar({
 
   // Fetch all days on mount
   useEffect(() => {
-    const fetchDays = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("/api/days");
-        if (response.ok) {
-          const days = await response.json();
+        const token = localStorage.getItem("authToken");
+        
+        // Fetch days
+        const dayResponse = await fetch("/api/days");
+        if (dayResponse.ok) {
+          const days = await dayResponse.json();
           setAllDays(days);
         }
+        
+        // Fetch categories
+        setLoadingCategoryData(true);
+        const catResponse = await fetch("/api/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (catResponse.ok) {
+          const cats = await catResponse.json();
+          setCategories(Array.isArray(cats) ? cats : []);
+        }
+        
+        // Fetch subcategories
+        const subCatResponse = await fetch("/api/subcategories", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (subCatResponse.ok) {
+          const subCats = await subCatResponse.json();
+          setSubCategories(Array.isArray(subCats) ? subCats : []);
+        }
       } catch (error) {
-        console.error("Failed to fetch days:", error);
+        console.error("Failed to fetch data:", error);
+      } finally {
+        setLoadingCategoryData(false);
       }
     };
-    fetchDays();
+    fetchData();
   }, []);
 
   // Fetch latest history entry
@@ -188,8 +214,15 @@ export default function StreakDetailSidebar({
 
   if (!mounted || !entry) return null;
 
+  // Get available subcategories from database data
   const availableSubcategories = editCategory
-    ? SUBCATEGORIES[editCategory as keyof typeof SUBCATEGORIES] || []
+    ? subCategories
+        .filter((sub) => {
+          // Find the category ID from the category name
+          const categoryId = categories.find((cat) => cat.name === editCategory)?.id;
+          return categoryId && sub.categoryId === categoryId;
+        })
+        .map((sub) => sub.name)
     : [];
 
   // History data from API fetch - use the fetched count instead of entry.streakCount
@@ -464,14 +497,19 @@ export default function StreakDetailSidebar({
                   setEditSubcategory("");
                 }
               }}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={loadingCategoryData}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
             >
               <option value="">Select Category</option>
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
+              {loadingCategoryData ? (
+                <option disabled>Loading...</option>
+              ) : (
+                categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))
+              )}
             </select>
           ) : (
             <div className="flex items-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 bg-white">

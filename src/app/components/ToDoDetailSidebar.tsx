@@ -57,6 +57,8 @@ export default function ToDoDetailSidebar({
   const [editDescription, setEditDescription] = useState(
     item?.description || ""
   );
+  const [categories, setCategories] = useState<Array<{id: number; name: string}>>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   const { deleteTask, updateTask } = useTaskMutation();
 
@@ -136,16 +138,39 @@ export default function ToDoDetailSidebar({
         setEditEndTime(item.endTime || "09:00");
         setEditDescription(item.description || "");
       }
+      // Fetch categories
+      fetchCategories();
     } else {
       const t = setTimeout(() => setMounted(false), 300);
       return () => clearTimeout(t);
     }
   }, [isOpen, item]);
 
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const token = localStorage.getItem("authToken");
+      const headers: HeadersInit = {};
+      
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch("/api/categories", { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Error loading categories:", error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
   if (!mounted || !item) return null;
 
   const priorityOptions = ["Low", "Medium", "High"];
-  const categories = [
     "Work",
     "Learning",
     "Personal",
@@ -314,13 +339,18 @@ export default function ToDoDetailSidebar({
                   value={editCategory}
                   onChange={(e) => setEditCategory(e.target.value)}
                   className="w-full bg-transparent outline-none text-sm text-gray-900 font-semibold mt-1"
+                  disabled={loadingCategories}
                 >
                   <option value="">Select Category</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
+                  {loadingCategories ? (
+                    <option disabled>Loading...</option>
+                  ) : (
+                    categories.map((cat) => (
+                      <option key={cat.id} value={cat.name}>
+                        {cat.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </>
             ) : (

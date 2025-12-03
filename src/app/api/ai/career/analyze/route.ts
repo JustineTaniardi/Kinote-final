@@ -230,13 +230,16 @@ OUTPUT HANYA JSON (tanpa teks lain):
   "learning_conclusion": "Kesimpulan singkat apa yang dipelajari",
   "strengths": ["strength 1", "strength 2", "strength 3", "strength 4"],
   "areas_to_improve": ["area 1", "area 2", "area 3"],
-  "tips_and_tricks": ["tip 1 DETAIL untuk ${purpose}", "tip 2 DETAIL untuk ${purpose}", "tip 3 DETAIL untuk ${purpose}", "tip 4 DETAIL untuk ${purpose}", "tip 5 DETAIL untuk ${purpose}"],
-  "recommended_resources": ["Nama - https://link1.com / https://link2.com / https://link3.com", "Nama2 - https://link1.com / https://link2.com / https://link3.com"]
+  "tips_and_tricks": ["tip 1 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 2 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 3 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 4 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 5 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 6 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 7 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA", "tip 8 DETAIL dan SPESIFIK untuk ${purpose} - PANJANG MINIMAL 50 KATA"]
 }`;
 
-    const systemPrompt = `Anda adalah AI Learning Coach. Analisis 10 history terakhir user dan berikan insight singkat tapi valuable.
-Tips HARUS SPESIFIK untuk tujuan user (Lomba/Pekerjaan/Kursus), bukan tips umum.
-OUTPUT HANYA JSON, TIDAK ADA TEKS LAIN.`;
+    const systemPrompt = `Anda adalah AI Learning Coach profesional. Analisis 10 history terakhir user dan berikan insight singkat tapi sangat valuable dan actionable.
+PENTING:
+1. Tips HARUS SPESIFIK untuk tujuan user (Lomba/Pekerjaan/Kursus), bukan tips umum
+2. Setiap tip HARUS minimal 50 kata dengan detail konkret dan actionable
+3. JANGAN sertakan URL atau link apapun - hanya berikan tips dan strategi
+4. Fokus pada praktik, strategi, dan mindset yang bisa langsung diterapkan
+5. OUTPUT HANYA JSON, TIDAK ADA TEKS LAIN`;
 
     // Call OpenAI
     const client = new OpenAI({ apiKey: OPENAI_API_KEY });
