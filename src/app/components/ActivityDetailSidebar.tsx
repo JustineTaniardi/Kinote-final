@@ -54,12 +54,43 @@ export default function ActivityDetailSidebar({
     if (!item) return;
     setIsStarting(true);
     try {
-      // Navigate to the streak page with the activity ID
-      router.push(`/streak?taskId=${item.id}`);
-      onClose();
+      // Get auth token
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        showError("Authentication required");
+        setIsStarting(false);
+        return;
+      }
+
+      // Start the streak/activity session
+      const response = await fetch(`/api/streaks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: item.judul,
+          categoryId: item.kategori,
+          description: item.description || "",
+          totalMinutes: parseInt(item.totalTime || "0"),
+          breakTime: parseInt(item.breakTime || "0"),
+        }),
+      });
+
+      if (response.ok) {
+        const streak = await response.json();
+        showSuccess("Activity started!");
+        router.push(`/streak?streakId=${streak.id}`);
+        onClose();
+      } else {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        showError(errorData.message || "Failed to start activity");
+        setIsStarting(false);
+      }
     } catch (error) {
       console.error("Start activity error:", error);
-      showError("Failed to start activity");
+      showError(error instanceof Error ? error.message : "Failed to start activity");
       setIsStarting(false);
     }
   };
@@ -79,15 +110,29 @@ export default function ActivityDetailSidebar({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      onDelete && onDelete(item.id);
-      setShowDeleteConfirm(false);
-      onClose();
-      // Refresh the page after a short delay
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`/api/tasks/${item.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        setShowDeleteConfirm(false);
+        onDelete && onDelete(item.id);
+        onClose();
+        showSuccess("Activity deleted successfully!");
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } else {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        const errorMessage = errorData.message || `Failed to delete activity (${response.status})`;
+        console.error("Delete failed:", response.status, errorData);
+        showError(errorMessage);
+      }
     } catch (error) {
       console.error("Delete error:", error);
+      showError(error instanceof Error ? error.message : "Error deleting activity");
     } finally {
       setIsDeleting(false);
     }
