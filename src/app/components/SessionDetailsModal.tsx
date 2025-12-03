@@ -155,8 +155,42 @@ export default function SessionDetailsModal({
     }
   };
 
-  const handleClose = () => {
-    if (!isSubmitting) {
+  const handleClose = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      // Delete the temporary session entry when user cancels
+      const authToken = localStorage.getItem("authToken");
+      if (!authToken) {
+        console.error("Authentication token not found");
+        onClose();
+        return;
+      }
+
+      const response = await fetch(`/api/streaks/${streakId}/cancel-session`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          historyId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to cancel session");
+      }
+    } catch (error) {
+      console.error("Cancel session error:", error);
+    } finally {
+      setIsSubmitting(false);
+      // Reset form and close modal
+      setDescription("");
+      setPhotoFile(null);
+      setPhotoPreview("");
+      setErrors({});
       onClose();
     }
   };
