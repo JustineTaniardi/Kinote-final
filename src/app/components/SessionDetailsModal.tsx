@@ -155,20 +155,13 @@ export default function SessionDetailsModal({
     }
   };
 
-  const handleClose = async () => {
+  const handleClose = () => {
     if (isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      // Delete the temporary session entry when user cancels
-      const authToken = localStorage.getItem("authToken");
-      if (!authToken) {
-        console.error("Authentication token not found");
-        onClose();
-        return;
-      }
-
-      const response = await fetch(`/api/streaks/${streakId}/cancel-session`, {
+    
+    // Delete the temporary session entry in the background without blocking UI
+    const authToken = localStorage.getItem("authToken");
+    if (authToken) {
+      fetch(`/api/streaks/${streakId}/cancel-session`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -177,22 +170,17 @@ export default function SessionDetailsModal({
         body: JSON.stringify({
           historyId,
         }),
+      }).catch((error) => {
+        console.error("Cancel session error:", error);
       });
-
-      if (!response.ok) {
-        console.error("Failed to cancel session");
-      }
-    } catch (error) {
-      console.error("Cancel session error:", error);
-    } finally {
-      setIsSubmitting(false);
-      // Reset form and close modal
-      setDescription("");
-      setPhotoFile(null);
-      setPhotoPreview("");
-      setErrors({});
-      onClose();
     }
+
+    // Reset form and close modal immediately
+    setDescription("");
+    setPhotoFile(null);
+    setPhotoPreview("");
+    setErrors({});
+    onClose();
   };
 
   if (!mounted) return null;
