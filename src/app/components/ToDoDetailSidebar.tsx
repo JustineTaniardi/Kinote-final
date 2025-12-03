@@ -196,7 +196,16 @@ export default function ToDoDetailSidebar({
   };
 
   const handleStart = async () => {
-    if (!item) return;
+    if (!item) {
+      showError("No item selected");
+      return;
+    }
+    
+    if (isEditing) {
+      showError("Please finish editing first");
+      return;
+    }
+    
     setIsStarting(true);
     try {
       console.log("[START] Starting task:", item.id);
@@ -216,6 +225,7 @@ export default function ToDoDetailSidebar({
         breakTime: 5, // Default 5 minutes
       };
       
+      console.log("[START] Sending payload:", payload);
       const response = await fetch(`/api/streaks`, {
         method: "POST",
         headers: {
@@ -225,14 +235,22 @@ export default function ToDoDetailSidebar({
         body: JSON.stringify(payload),
       });
 
+      console.log("[START] Response status:", response.status);
+
       if (response.ok) {
         const streak = await response.json();
         console.log("[START] Streak created:", streak.id);
         showSuccess("Task started!");
-        router.push(`/streak?streakId=${streak.id}`);
-        onClose();
+        // Reset state before navigation
+        setIsStarting(false);
+        // Add small delay to ensure state update and toast display
+        setTimeout(() => {
+          router.push(`/streak?streakId=${streak.id}`);
+          onClose();
+        }, 100);
       } else {
         const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        console.error("[START] Failed:", response.status, errorData);
         showError(errorData.message || "Failed to start task");
         setIsStarting(false);
       }
@@ -591,7 +609,7 @@ export default function ToDoDetailSidebar({
               <button
                 onClick={handleStart}
                 disabled={isStarting}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 hover:disabled:bg-gray-400 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
               >
                 <span>▶</span>
                 {isStarting ? "Starting..." : "Start"}
