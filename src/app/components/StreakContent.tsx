@@ -251,7 +251,6 @@ export default function StreakContent({}: StreakContentProps) {
     
     setTimerFor(null);
   };
-  };
 
   const handleDelete = (id: number) => {
     setEntries((prev) => prev.filter((e) => e.id !== id));
