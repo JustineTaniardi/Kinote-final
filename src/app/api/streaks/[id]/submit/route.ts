@@ -140,6 +140,16 @@ export async function POST(
       },
     });
 
+    // Increment streak count when session is completed with description and photo
+    await prisma.streak.update({
+      where: { id: streakId },
+      data: {
+        streakCount: {
+          increment: 1,
+        },
+      },
+    });
+
     return NextResponse.json(updatedHistory);
   } catch (error) {
     console.error("Submit streak error:", error);
