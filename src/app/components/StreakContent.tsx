@@ -239,36 +239,18 @@ export default function StreakContent({}: StreakContentProps) {
       }
     }
 
-    const payload: StreakEntry = {
-      id: entries.length + 1,
-      title: timerFor.title,
-      category: timerFor.category,
-      subcategory: timerFor.subcategory,
-      totalMinutes: minutes,
-      breakTime: timerFor.breakTime,
-      lastUpdated: new Date().toISOString(),
-      description: `Completed ${minutes} min${
-        breakRepetitionsUsed > 0 ? ` with ${breakRepetitionsUsed} breaks` : ""
-      }`,
-      date: new Date().toISOString(),
-      status: "Completed",
-      days: timerFor.days,
-    };
-
-    setEntries((prev) => [...prev, payload]);
     setTimerOpen(false);
     
     // Show session details modal for mandatory input (description and photo)
+    // DO NOT add entry to list yet - wait for submission to complete
     if (timerFor.id && typeof timerFor.id === "number") {
       setCompletionStreakId(timerFor.id);
       setCompletionStreakTitle(timerFor.title);
       setSessionDetailsOpen(true);
     }
     
-    // Trigger ActivityItem to refetch streak count
-    setRefreshTrigger((prev) => prev + 1);
-    
     setTimerFor(null);
+  };
   };
 
   const handleDelete = (id: number) => {
@@ -399,7 +381,7 @@ export default function StreakContent({}: StreakContentProps) {
                     <div
                       key={`header-${day}`}
                       className="text-center"
-                      style={{ minWidth: "220px", flexShrink: 0 }}
+                      style={{ minWidth: "160px", flexShrink: 0 }}
                     >
                       <h3 className="text-sm font-semibold text-gray-900">{day}</h3>
                     </div>
@@ -482,6 +464,7 @@ export default function StreakContent({}: StreakContentProps) {
         onSubmitSuccess={() => {
           setSessionDetailsOpen(false);
           refetch();
+          setRefreshTrigger((prev) => prev + 1);
         }}
       />
     </div>

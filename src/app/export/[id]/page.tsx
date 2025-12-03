@@ -186,8 +186,8 @@ export default function ExportPage() {
   const streakStartDate = parseDate(data.streak.createdAt);
   const streakEndDate = new Date();
   
-  // Safe streak count
-  const streakCount = data.streak.streakCount || data.histories?.length || 0;
+  // Calculate streak count for the selected month only
+  const streakCount = data.histories?.length || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4">
