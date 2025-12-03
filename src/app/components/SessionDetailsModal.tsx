@@ -155,13 +155,18 @@ export default function SessionDetailsModal({
     }
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (isSubmitting) return;
     
-    // Delete the temporary session entry in the background without blocking UI
-    const authToken = localStorage.getItem("authToken");
-    if (authToken) {
-      fetch(`/api/streaks/${streakId}/cancel-session`, {
+    try {
+      // Delete the temporary session entry - MUST complete before closing
+      const authToken = localStorage.getItem("authToken");
+      if (!authToken) {
+        console.error("Authentication token not found");
+        return;
+      }
+
+      const response = await fetch(`/api/streaks/${streakId}/cancel-session`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -170,17 +175,25 @@ export default function SessionDetailsModal({
         body: JSON.stringify({
           historyId,
         }),
-      }).catch((error) => {
-        console.error("Cancel session error:", error);
       });
-    }
 
-    // Reset form and close modal immediately
-    setDescription("");
-    setPhotoFile(null);
-    setPhotoPreview("");
-    setErrors({});
-    onClose();
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Failed to cancel session:", errorData.message);
+        showError("Failed to cancel session. Please try again.");
+        return;
+      }
+
+      // Only close after successful deletion
+      setDescription("");
+      setPhotoFile(null);
+      setPhotoPreview("");
+      setErrors({});
+      onClose();
+    } catch (error) {
+      console.error("Cancel session error:", error);
+      showError("Error closing modal. Please try again.");
+    }
   };
 
   if (!mounted) return null;
